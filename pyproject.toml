@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "curveintel"
+version = "1.0.0"
+description = "ISO 6892-1:2019 compliant tensile test analysis engine with multi-vendor CSV support"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [
+    {name = "CurveIntel Team"},
+]
+keywords = ["tensile-test", "ISO-6892", "stress-strain", "mechanical-testing", "quality-control"]
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "matplotlib>=3.7",
+    "reportlab>=4.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "web*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

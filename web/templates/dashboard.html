@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CurveIntel - Precision Observatory</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "surface-container-high": "#242842",
+                    "on-secondary-fixed-variant": "#004f58",
+                    "on-secondary": "#00363d",
+                    "surface-variant": "#2f334e",
+                    "on-secondary-container": "#00616d",
+                    "tertiary-fixed": "#62ff96",
+                    "inverse-surface": "#dee0ff",
+                    "outline-variant": "#424753",
+                    "tertiary-fixed-dim": "#00e475",
+                    "on-surface-variant": "#c2c6d6",
+                    "on-tertiary-fixed-variant": "#005226",
+                    "background": "#080c25",
+                    "outline": "#8c909f",
+                    "on-primary-container": "#00275f",
+                    "inverse-primary": "#0059c6",
+                    "on-error-container": "#ffdad6",
+                    "on-primary": "#002d6c",
+                    "secondary-fixed": "#9cf0ff",
+                    "error-container": "#93000a",
+                    "primary": "#afc6ff",
+                    "tertiary": "#00e475",
+                    "surface": "#161a33",
+                    "surface-bright": "#343752",
+                    "surface-container-low": "#161a33",
+                    "tertiary-container": "#00a754",
+                    "surface-container-lowest": "#080c25",
+                    "primary-fixed": "#d9e2ff",
+                    "on-surface": "#dee0ff",
+                    "surface-container-highest": "#2f334e",
+                    "on-primary-fixed-variant": "#004398",
+                    "on-tertiary-fixed": "#00210b",
+                    "surface-dim": "#0d112a",
+                    "on-secondary-fixed": "#001f24",
+                    "on-background": "#dee0ff",
+                    "surface-tint": "#afc6ff",
+                    "primary-fixed-dim": "#afc6ff",
+                    "error": "#ffb4ab",
+                    "primary-container": "#528dff",
+                    "secondary-container": "#00e3fd",
+                    "inverse-on-surface": "#2b2f49",
+                    "on-primary-fixed": "#001a43",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#00daf3",
+                    "surface-container": "#1a1e37",
+                    "secondary": "#bdf4ff",
+                    "on-tertiary": "#003918",
+                    "on-tertiary-container": "#003114"
+                },
+                fontFamily: {
+                    headline: ["Inter", "sans-serif"],
+                    body: ["Inter", "sans-serif"],
+                    label: ["Inter", "sans-serif"]
+                },
+                borderRadius: {
+                    DEFAULT: "0.25rem",
+                    lg: "0.5rem",
+                    xl: "0.75rem",
+                    full: "9999px"
+                }
+            }
+        }
+    }
+</script>
+<style>
+    .glass-panel {
+        background-color: rgba(15, 23, 62, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: inset 1px 1px 0px 0px rgba(255, 255, 255, 0.05);
+    }
+    .soft-elevation { box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.2); }
+    .ambient-shadow { box-shadow: 0px 24px 48px rgba(0, 0, 0, 0.4), 0 0 20px rgba(175, 198, 255, 0.04); }
+    .btn-primary:hover { box-shadow: 0 0 15px rgba(175, 198, 255, 0.3); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+    ::-webkit-scrollbar-thumb { background: rgba(140, 144, 159, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(140, 144, 159, 0.6); }
+    
+    /* Upload overlay */
+    .upload-overlay {
+        display: none;
+        position: fixed; inset: 0; z-index: 100;
+        background: rgba(8, 12, 37, 0.9);
+        backdrop-filter: blur(8px);
+    }
+    .upload-overlay.active { display: flex; }
+    
+    .drop-zone {
+        border: 2px dashed rgba(175, 198, 255, 0.3);
+        transition: all 0.3s ease;
+    }
+    .drop-zone.dragover {
+        border-color: #62ff96;
+        background: rgba(98, 255, 150, 0.05);
+    }
+    
+    /* Loading spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 1s linear infinite; }
+    
+    /* Fade in */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+</style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body antialiased min-h-screen flex flex-col pt-16">
+
+<!-- TOP NAV -->
+<nav class="bg-slate-950/85 backdrop-blur-xl shadow-[0_24px_48px_rgba(0,0,0,0.4)] fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 border-b border-outline-variant/15">
+    <div class="flex items-center gap-8">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+            <span class="text-xl font-bold tracking-tighter text-blue-100">CurveIntel</span>
+        </div>
+        <div class="hidden md:flex gap-6 items-center">
+            <a class="font-inter tracking-tight text-blue-400 border-b-2 border-blue-400 pb-1" href="/">Dashboard</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Analytics</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Materials</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Archive</a>
+        </div>
+    </div>
+    <div class="flex items-center gap-6">
+        <button onclick="showUploadModal()" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-primary hover:bg-primary/5 transition-colors text-sm font-medium">
+            <span class="material-symbols-outlined text-sm">upload</span> Upload Data
+        </button>
+        <div class="flex items-center gap-4 text-on-surface-variant">
+            <button class="hover:text-primary transition-colors relative">
+                <span class="material-symbols-outlined">notifications</span>
+                {% if has_data %}<span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full"></span>{% endif %}
+            </button>
+            <button class="hover:text-primary transition-colors"><span class="material-symbols-outlined">settings</span></button>
+        </div>
+    </div>
+</nav>
+
+<!-- UPLOAD MODAL -->
+<div id="uploadOverlay" class="upload-overlay items-center justify-center">
+    <div class="glass-panel rounded-2xl p-8 max-w-lg w-full mx-4 fade-up">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-on-surface">Upload Test Data</h2>
+            <button onclick="hideUploadModal()" class="text-on-surface-variant hover:text-on-surface">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div id="dropZone" class="drop-zone rounded-xl p-12 text-center cursor-pointer" 
+             onclick="document.getElementById('fileInput').click()">
+            <span class="material-symbols-outlined text-4xl text-primary mb-4 block">cloud_upload</span>
+            <p class="text-on-surface font-medium mb-1">Drop CSV file here</p>
+            <p class="text-xs text-on-surface-variant">or click to browse</p>
+            <input type="file" id="fileInput" accept=".csv" class="hidden" onchange="handleFileSelect(event)">
+        </div>
+        <div id="uploadProgress" class="hidden mt-4">
+            <div class="flex items-center gap-3">
+                <div class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full spinner"></div>
+                <span class="text-sm text-on-surface" id="uploadStatus">Analyzing...</span>
+            </div>
+            <div class="w-full bg-surface-container h-1.5 rounded-full mt-3">
+                <div id="progressBar" class="bg-primary h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<main class="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full space-y-8 pb-24">
+
+<!-- BREADCRUMB -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-on-surface-variant mb-2">
+            <span>Dashboard</span>
+            <span class="material-symbols-outlined text-xs">chevron_right</span>
+            <span class="text-primary font-medium">Analysis Results</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight text-on-surface">Stress-Strain Integrity</h1>
+    </div>
+</div>
+
+{% if not has_data %}
+<!-- EMPTY STATE -->
+<div class="glass-panel rounded-2xl p-16 text-center">
+    <span class="material-symbols-outlined text-6xl text-primary/30 mb-4 block">science</span>
+    <h2 class="text-xl font-bold text-on-surface mb-2">No Analysis Data</h2>
+    <p class="text-on-surface-variant mb-6">Upload a CSV file to start analyzing stress-strain data</p>
+    <button onclick="showUploadModal()" class="px-6 py-2.5 rounded-lg bg-primary text-on-primary font-medium hover:bg-primary/90 transition-colors">
+        <span class="material-symbols-outlined text-sm align-middle mr-1">upload</span> Upload CSV
+    </button>
+</div>
+{% else %}
+
+<!-- HERO METRICS -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- E Modulus -->
+    <div class="glass-panel rounded-xl p-6 relative overflow-hidden soft-elevation fade-up">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+        <h3 class="text-sm font-medium text-on-surface-variant mb-1">Elastic Modulus</h3>
+        <div class="flex items-end gap-3">
+            <span class="text-3xl font-bold text-on-surface">{{ current.properties.elastic_modulus_gpa or '---' }} <span class="text-lg text-on-surface-variant font-normal">GPa</span></span>
+        </div>
+        <div class="mt-4 h-8 w-full flex items-end gap-1 opacity-70">
+            <div class="w-1/6 h-2 bg-primary/30 rounded-t-sm"></div>
+            <div class="w-1/6 h-3 bg-primary/40 rounded-t-sm"></div>
+            <div class="w-1/6 h-5 bg-primary/60 rounded-t-sm"></div>
+            <div class="w-1/6 h-4 bg-primary/50 rounded-t-sm"></div>
+            <div class="w-1/6 h-6 bg-primary/80 rounded-t-sm"></div>
+            <div class="w-1/6 h-8 bg-primary rounded-t-sm"></div>
+        </div>
+    </div>
+    <!-- Yield -->
+    <div class="glass-panel rounded-xl p-6 relative overflow-hidden soft-elevation fade-up" style="animation-delay: 0.05s">
+        <h3 class="text-sm font-medium text-on-surface-variant mb-1">Yield Strength</h3>
+        <div class="flex items-end gap-3 mb-2">
+            <span class="text-3xl font-bold text-on-surface">{{ current.properties.yield_strength_mpa or '---' }} <span class="text-lg text-on-surface-variant font-normal">MPa</span></span>
+        </div>
+        <div class="flex items-center justify-between mt-4 border-t border-outline-variant/15 pt-3">
+            <span class="text-xs text-on-surface-variant">
+                {% if current.properties.yield_behavior == 'discontinuous' %}ReH (Discontinuous){% else %}Rp0.2 (Continuous){% endif %}
+            </span>
+            <span class="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">Nominal</span>
+        </div>
+    </div>
+    <!-- UTS -->
+    <div class="glass-panel rounded-xl p-6 relative overflow-hidden soft-elevation fade-up" style="animation-delay: 0.1s">
+        <h3 class="text-sm font-medium text-on-surface-variant mb-1">Ultimate Tensile</h3>
+        <div class="flex items-end gap-3 mb-4">
+            <span class="text-3xl font-bold text-on-surface">{{ current.properties.ultimate_tensile_mpa or '---' }} <span class="text-lg text-on-surface-variant font-normal">MPa</span></span>
+        </div>
+        {% if current.properties.ultimate_tensile_mpa %}
+        {% set uts_pct = (current.properties.ultimate_tensile_mpa / (current.properties.ultimate_tensile_mpa * 1.1) * 100)|int %}
+        <div class="w-full bg-surface-container-highest rounded-full h-1.5 mb-1 mt-auto">
+            <div class="bg-secondary h-1.5 rounded-full" style="width: {{ uts_pct }}%"></div>
+        </div>
+        {% endif %}
+    </div>
+    <!-- Quality Score -->
+    <div class="glass-panel rounded-xl p-6 relative overflow-hidden soft-elevation flex flex-row items-center justify-between fade-up" style="animation-delay: 0.15s">
+        <div>
+            <h3 class="text-sm font-medium text-on-surface-variant mb-1">Quality Score</h3>
+            <div class="text-3xl font-bold text-on-surface mb-2">{{ current.quality.score|int }}<span class="text-lg text-on-surface-variant font-normal">/100</span></div>
+            {% set grade_color = 'tertiary-fixed' if current.quality.score >= 80 else ('primary' if current.quality.score >= 60 else 'error') %}
+            <span class="text-xs font-bold text-{{ grade_color }} bg-{{ grade_color }}/10 px-2 py-1 rounded border border-{{ grade_color }}/20">GRADE {{ current.quality.grade }}</span>
+        </div>
+        <div class="relative w-16 h-16 flex items-center justify-center rounded-full border-4 border-surface-container-highest">
+            {% set offset = ((100 - current.quality.score) / 100 * 175)|int %}
+            <svg class="absolute inset-0 w-full h-full transform -rotate-90">
+                <circle class="text-{{ grade_color }}" cx="28" cy="28" fill="none" r="28" stroke="currentColor" stroke-dasharray="175" stroke-dashoffset="{{ offset }}" stroke-width="4" transform="translate(4,4)"></circle>
+            </svg>
+            <span class="material-symbols-outlined text-{{ grade_color }} text-xl" style="font-variation-settings: 'FILL' 1;">
+                {% if current.quality.score >= 80 %}check_circle{% elif current.quality.score >= 60 %}info{% else %}warning{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+    <!-- LEFT: Chart + Pipeline -->
+    <div class="xl:col-span-7 flex flex-col gap-8">
+        <!-- Chart -->
+        <div class="glass-panel rounded-xl p-6 flex-1 min-h-[450px] flex flex-col relative fade-up">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-on-surface">Stress-Strain Curve</h2>
+                    <p class="text-xs text-on-surface-variant mt-1">{{ current.filename }} &middot; {{ current.n_points }} points</p>
+                </div>
+                <div class="flex gap-1 border border-outline-variant/15 rounded-lg p-1">
+                    <button class="p-1.5 text-on-surface-variant hover:text-primary transition-colors rounded hover:bg-surface-container"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
+                    <button class="p-1.5 text-on-surface-variant hover:text-primary transition-colors rounded hover:bg-surface-container"><span class="material-symbols-outlined text-[20px]">download</span></button>
+                </div>
+            </div>
+            <div class="flex-1 relative">
+                <canvas id="stressStrainChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Pipeline Status -->
+        <div class="glass-panel rounded-xl p-6 relative fade-up">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-semibold text-on-surface">Pipeline Status</h2>
+                <span class="text-xs text-on-surface-variant font-mono">Total Time: {{ current.pipeline.total_ms }} ms</span>
+            </div>
+            <div class="flex items-center justify-between relative mb-4">
+                <div class="absolute top-1/2 left-0 w-full h-[2px] bg-outline-variant/15 -z-10 -translate-y-1/2"></div>
+                {% for layer_name, layer_label in [('ingestion','Ingestion'), ('preprocessing','Preproc'), ('extraction','Extract'), ('anomaly','Anomaly'), ('reporting','Report')] %}
+                {% set status = current.pipeline.layer_status[layer_name] %}
+                <div class="flex flex-col items-center gap-2 bg-surface-container-low px-2">
+                    {% if status == 'success' %}
+                    <div class="w-8 h-8 rounded-full bg-tertiary-fixed/20 border border-tertiary-fixed flex items-center justify-center text-tertiary-fixed">
+                        <span class="material-symbols-outlined text-[16px]">check</span>
+                    </div>
+                    <span class="text-[10px] text-on-surface-variant">{{ layer_label }}</span>
+                    {% elif status == 'warning' %}
+                    <div class="w-8 h-8 rounded-full bg-error-container border border-error flex items-center justify-center text-error animate-pulse">
+                        <span class="material-symbols-outlined text-[16px]">warning</span>
+                    </div>
+                    <span class="text-[10px] text-error">{{ layer_label }}</span>
+                    {% else %}
+                    <div class="w-8 h-8 rounded-full bg-surface-container border border-error flex items-center justify-center text-error">
+                        <span class="material-symbols-outlined text-[16px]">close</span>
+                    </div>
+                    <span class="text-[10px] text-error">{{ layer_label }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Properties + Anomalies + Signal -->
+    <div class="xl:col-span-5 flex flex-col gap-8">
+        <!-- Properties Table -->
+        <div class="glass-panel rounded-xl p-0 overflow-hidden flex flex-col fade-up">
+            <div class="p-5 border-b border-outline-variant/15">
+                <h2 class="text-lg font-semibold text-on-surface">Mechanical Properties</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="text-xs text-on-surface-variant border-b border-outline-variant/10 bg-surface-container/30">
+                            <th class="py-3 px-5 font-medium">Property</th>
+                            <th class="py-3 px-5 font-medium">Value</th>
+                            <th class="py-3 px-5 font-medium">Unit</th>
+                            <th class="py-3 px-5 font-medium">Method</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/5">
+                        {% set props = current.properties %}
+                        {% if props.elastic_modulus_gpa %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></div> E (Modulus)</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.elastic_modulus_gpa }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">GPa</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">RANSAC (R²={{ current.quality.elastic_r2 }})</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.yield_strength_mpa %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></div> Yield{% if props.yield_behavior == 'discontinuous' %} (ReH){% endif %}</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.yield_strength_mpa }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">MPa</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">{% if props.yield_behavior == 'discontinuous' %}Dual Yield{% else %}0.2% Offset{% endif %}</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.yield_lower_mpa %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-primary"></div> Yield (ReL)</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.yield_lower_mpa }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">MPa</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">Lüders valley</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.ultimate_tensile_mpa %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-secondary"></div> UTS</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.ultimate_tensile_mpa }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">MPa</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">Global Max</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.elongation_at_break_pct %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div> Elongation</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.elongation_at_break_pct }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">%</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">Fracture pt.</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.strain_hardening_n %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div> n-value</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.strain_hardening_n }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">-</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">Hollomon fit</td>
+                        </tr>
+                        {% endif %}
+                        {% if props.toughness_mj_m3 %}
+                        <tr class="hover:bg-surface-container/20 transition-colors">
+                            <td class="py-3 px-5 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div> Toughness</td>
+                            <td class="py-3 px-5 font-semibold text-on-surface">{{ props.toughness_mj_m3 }}</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">MJ/m³</td>
+                            <td class="py-3 px-5 text-on-surface-variant/70 text-xs">Trapezoidal</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Anomaly Summary -->
+        <div class="glass-panel rounded-xl p-5 border-l-4 {% if current.anomalies.critical > 0 %}border-l-error{% elif current.anomalies.warning > 0 %}border-l-error/70{% else %}border-l-tertiary-fixed{% endif %} fade-up">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-semibold text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-error text-[18px]">warning</span> Anomaly Summary
+                </h2>
+                <span class="bg-error/10 text-error border border-error/20 px-2 py-0.5 rounded text-[10px] font-bold">{{ current.anomalies.total }} DETECTED</span>
+            </div>
+            <div class="flex gap-2 mb-3 text-[10px]">
+                <span class="bg-primary/10 text-primary px-2 py-0.5 rounded">{{ current.anomalies.info }} Info</span>
+                <span class="bg-error/10 text-error px-2 py-0.5 rounded">{{ current.anomalies.warning }} Warning</span>
+                <span class="bg-error/20 text-error px-2 py-0.5 rounded">{{ current.anomalies.critical }} Critical</span>
+            </div>
+            <ul class="space-y-3 max-h-48 overflow-y-auto">
+                {% for a in current.anomalies.entries[:5] %}
+                <li class="flex gap-3 items-start p-2 rounded {% if a.severity == 'warning' or a.severity == 'critical' %}bg-surface-container-highest/50 border border-outline-variant/10{% else %}bg-surface-container-highest/30 border border-outline-variant/5{% endif %}">
+                    <span class="material-symbols-outlined text-[16px] mt-0.5 {% if a.severity == 'critical' %}text-error{% elif a.severity == 'warning' %}text-error{% else %}text-secondary{% endif %}">
+                        {% if a.severity == 'critical' %}error{% elif a.severity == 'warning' %}priority_high{% else %}info{% endif %}
+                    </span>
+                    <div>
+                        <p class="text-sm text-on-surface font-medium">{{ a.type|replace('_',' ')|title }}</p>
+                        <p class="text-[10px] text-on-surface-variant mt-0.5">{{ a.description[:80] }}</p>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Signal Quality -->
+        <div class="glass-panel rounded-xl p-5 flex items-center justify-between fade-up">
+            <div>
+                <h2 class="text-sm font-semibold text-on-surface mb-1">Signal Quality</h2>
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl font-bold text-on-surface">{{ current.quality.snr_db }} <span class="text-xs text-on-surface-variant font-normal">dB (SNR)</span></span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-1">Noise baseline: {{ current.quality.noise_pct }}%</p>
+            </div>
+            <div class="flex flex-col items-end">
+                {% set snr_label = 'EXCELLENT' if current.quality.snr_db >= 40 else ('GOOD' if current.quality.snr_db >= 20 else 'POOR') %}
+                {% set snr_color = 'tertiary-fixed' if current.quality.snr_db >= 40 else ('primary' if current.quality.snr_db >= 20 else 'error') %}
+                <span class="text-{{ snr_color }} text-sm font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">verified</span> {{ snr_label }}
+                </span>
+                <div class="w-24 h-1.5 bg-surface-container mt-2 rounded-full overflow-hidden">
+                    {% set snr_pct = [current.quality.snr_db / 50 * 100, 100]|min %}
+                    <div class="h-full bg-{{ snr_color }}" style="width: {{ snr_pct|int }}%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BATCH RESULTS -->
+{% if batch_results|length > 1 %}
+<div class="glass-panel rounded-xl p-0 overflow-hidden mt-8 fade-up">
+    <div class="p-6 border-b border-outline-variant/15 flex justify-between items-center">
+        <div>
+            <h2 class="text-lg font-semibold text-on-surface">Batch Results Context</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ batch_results|length }} tests in current session</p>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+            <thead>
+                <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                    <th class="py-3 px-6 font-medium">File Name</th>
+                    <th class="py-3 px-6 font-medium">Material</th>
+                    <th class="py-3 px-6 font-medium">UTS (MPa)</th>
+                    <th class="py-3 px-6 font-medium">Yield (MPa)</th>
+                    <th class="py-3 px-6 font-medium">Score</th>
+                    <th class="py-3 px-6 font-medium">Grade</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/5">
+                {% for r in batch_results %}
+                <tr class="hover:bg-surface-container/20 transition-colors cursor-pointer" onclick="window.location='/?id={{ r.id }}'">
+                    <td class="py-3 px-6 font-mono text-xs text-on-surface">{{ r.filename }}</td>
+                    <td class="py-3 px-6 text-on-surface-variant">{{ r.material_type }}</td>
+                    <td class="py-3 px-6 text-on-surface">{{ r.properties.ultimate_tensile_mpa or '---' }}</td>
+                    <td class="py-3 px-6 text-on-surface">{{ r.properties.yield_strength_mpa or '---' }}</td>
+                    <td class="py-3 px-6">
+                        <div class="w-16 bg-surface-container h-1.5 rounded-full">
+                            {% set bar_color = 'tertiary-fixed' if r.quality.score >= 80 else 'primary' %}
+                            <div class="bg-{{ bar_color }} h-1.5 rounded-full" style="width: {{ r.quality.score|int }}%"></div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6">
+                        {% set g_color = 'tertiary-fixed' if r.quality.score >= 80 else ('primary' if r.quality.score >= 60 else 'error') %}
+                        <span class="text-xs font-bold text-{{ g_color }}">{{ r.quality.grade }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+</main>
+
+<!-- FAB -->
+<button onclick="showUploadModal()" class="fixed bottom-8 right-8 w-14 h-14 rounded-xl flex items-center justify-center ambient-shadow btn-primary transition-all z-50" style="background: linear-gradient(135deg, #afc6ff, #528dff);">
+    <span class="material-symbols-outlined text-2xl font-bold text-[#00275f]">add</span>
+</button>
+
+<script>
+// ── Upload Modal ──
+function showUploadModal() {
+    document.getElementById('uploadOverlay').classList.add('active');
+}
+function hideUploadModal() {
+    document.getElementById('uploadOverlay').classList.remove('active');
+    document.getElementById('uploadProgress').classList.add('hidden');
+}
+
+// ── Drag & Drop ──
+const dropZone = document.getElementById('dropZone');
+['dragenter','dragover'].forEach(e => {
+    dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.add('dragover'); });
+});
+['dragleave','drop'].forEach(e => {
+    dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.remove('dragover'); });
+});
+dropZone.addEventListener('drop', (ev) => {
+    const files = ev.dataTransfer.files;
+    if (files.length > 0) uploadFile(files[0]);
+});
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+    const progress = document.getElementById('uploadProgress');
+    const statusEl = document.getElementById('uploadStatus');
+    const progressBar = document.getElementById('progressBar');
+    
+    progress.classList.remove('hidden');
+    statusEl.textContent = `Analyzing ${file.name}...`;
+    progressBar.style.width = '30%';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        progressBar.style.width = '60%';
+        const response = await fetch('/api/analyze', { method: 'POST', body: formData });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            progressBar.style.width = '100%';
+            statusEl.textContent = 'Analysis complete! Reloading...';
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            statusEl.textContent = `Error: ${data.message}`;
+            progressBar.style.width = '0%';
+        }
+    } catch (err) {
+        statusEl.textContent = `Upload failed: ${err.message}`;
+    }
+}
+
+// Close modal on ESC
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideUploadModal(); });
+
+{% if has_data %}
+// ── Chart.js Stress-Strain ──
+const curveData = {{ current.curve | tojson }};
+
+const ctx = document.getElementById('stressStrainChart').getContext('2d');
+const chartData = {
+    labels: curveData.strain,
+    datasets: [{
+        label: 'Stress-Strain',
+        data: curveData.stress,
+        borderColor: '#bdf4ff',
+        backgroundColor: 'rgba(189, 244, 255, 0.05)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.1,
+    }]
+};
+
+// Add annotation points
+const annotations = [];
+if (curveData.yield_point) {
+    chartData.datasets.push({
+        label: `Yield = ${curveData.yield_point.stress.toFixed(0)} MPa`,
+        data: [{x: curveData.yield_point.strain, y: curveData.yield_point.stress}],
+        borderColor: '#62ff96',
+        backgroundColor: '#62ff96',
+        pointRadius: 7,
+        pointStyle: 'circle',
+        showLine: false,
+    });
+}
+if (curveData.uts_point) {
+    chartData.datasets.push({
+        label: `UTS = ${curveData.uts_point.stress.toFixed(0)} MPa`,
+        data: [{x: curveData.uts_point.strain, y: curveData.uts_point.stress}],
+        borderColor: '#ffb4ab',
+        backgroundColor: '#ffb4ab',
+        pointRadius: 7,
+        pointStyle: 'triangle',
+        showLine: false,
+    });
+}
+
+new Chart(ctx, {
+    type: 'line',
+    data: chartData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: {
+                display: true,
+                position: 'top',
+                align: 'end',
+                labels: { color: '#c2c6d6', font: { size: 10, family: 'Inter' }, usePointStyle: true, padding: 15 }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(15, 23, 62, 0.95)',
+                titleColor: '#dee0ff',
+                bodyColor: '#c2c6d6',
+                borderColor: 'rgba(66, 71, 83, 0.3)',
+                borderWidth: 1,
+                callbacks: {
+                    title: (items) => `Strain: ${Number(items[0].label).toFixed(4)} mm/mm`,
+                    label: (item) => `Stress: ${Number(item.raw).toFixed(1)} MPa`
+                }
+            }
+        },
+        scales: {
+            x: {
+                type: 'linear',
+                title: { display: true, text: 'Strain (mm/mm)', color: '#8b9cc7', font: { size: 11 } },
+                ticks: { color: '#8b9cc7', font: { size: 9 }, callback: v => v.toFixed(2) },
+                grid: { color: 'rgba(66, 71, 83, 0.15)' }
+            },
+            y: {
+                title: { display: true, text: 'Stress (MPa)', color: '#8b9cc7', font: { size: 11 } },
+                ticks: { color: '#8b9cc7', font: { size: 9 } },
+                grid: { color: 'rgba(66, 71, 83, 0.15)' }
+            }
+        },
+        parsing: false,
+    }
+});
+
+// Fix parsing for scatter + line mix
+document.querySelector('#stressStrainChart').__chartjs = true;
+{% endif %}
+</script>
+</body>
+</html>

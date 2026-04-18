@@ -1,0 +1,12 @@
+services:
+  curveintel:
+    build: .
+    container_name: curveintel
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./reports:/app/reports
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
