@@ -206,8 +206,10 @@
         </div>
         <!-- Encoding / Separator -->
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant/15 text-sm">
-            <span class="material-symbols-outlined text-on-surface-variant text-[16px]">code</span>
-            <span class="text-on-surface-variant font-mono text-xs">{{ current.vendor.encoding }} · sep={{ current.vendor.separator }}</span>
+            <span class="material-symbols-outlined text-on-surface-variant text-[16px]">text_fields</span>
+            <span class="text-on-surface-variant text-xs">{{ current.vendor.encoding | upper }}</span>
+            <span class="text-outline-variant">|</span>
+            <span class="text-on-surface-variant text-xs">{% if current.vendor.separator == ';' %}Semicolon{% elif current.vendor.separator == '\t' %}Tab{% else %}Comma{% endif %} separated</span>
         </div>
         <!-- Strain Rate -->
         {% if current.strain_rate.range %}
@@ -293,13 +295,16 @@
             {% set grade_color = 'tertiary-fixed' if current.quality.score >= 80 else ('primary' if current.quality.score >= 60 else 'error') %}
             <span class="text-xs font-bold text-{{ grade_color }} bg-{{ grade_color }}/10 px-2 py-1 rounded border border-{{ grade_color }}/20">GRADE {{ current.quality.grade }}</span>
         </div>
-        <div class="relative w-16 h-16 flex items-center justify-center rounded-full border-4 border-surface-container-highest">
-            {% set offset = ((100 - current.quality.score) / 100 * 175)|int %}
-            <svg class="absolute inset-0 w-full h-full transform -rotate-90">
-                <circle class="text-{{ grade_color }}" cx="28" cy="28" fill="none" r="28" stroke="currentColor" stroke-dasharray="175" stroke-dashoffset="{{ offset }}" stroke-width="4" transform="translate(4,4)"></circle>
+        {% set pct = current.quality.score | int %}
+        {% set css_color = '#62ff96' if pct >= 80 else ('#afc6ff' if pct >= 60 else '#ffb4ab') %}
+        <div class="relative w-16 h-16 flex items-center justify-center">
+            <svg viewBox="0 0 36 36" class="w-16 h-16 transform -rotate-90">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(66,71,83,0.3)" stroke-width="3"></circle>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="{{ css_color }}" stroke-width="3" stroke-linecap="round"
+                    stroke-dasharray="{{ pct }}, 100"></circle>
             </svg>
-            <span class="material-symbols-outlined text-{{ grade_color }} text-xl" style="font-variation-settings: 'FILL' 1;">
-                {% if current.quality.score >= 80 %}check_circle{% elif current.quality.score >= 60 %}info{% else %}warning{% endif %}
+            <span class="absolute material-symbols-outlined text-{{ grade_color }} text-lg" style="font-variation-settings: 'FILL' 1;">
+                {% if pct >= 80 %}check_circle{% elif pct >= 60 %}info{% else %}warning{% endif %}
             </span>
         </div>
     </div>
@@ -499,6 +504,12 @@
             <h2 class="text-lg font-semibold text-on-surface">Batch Results Context</h2>
             <p class="text-xs text-on-surface-variant mt-1">{{ batch_results|length }} tests in current session</p>
         </div>
+        <div class="flex items-center gap-2">
+            <button onclick="if(confirm('Clear all results?')) fetch('/api/results/clear',{method:'DELETE'}).then(()=>location.reload())" 
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-error/20 text-error hover:bg-error/5 transition-colors text-xs font-medium">
+                <span class="material-symbols-outlined text-[14px]">delete_sweep</span> Clear All
+            </button>
+        </div>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse text-sm">
@@ -510,12 +521,13 @@
                     <th class="py-3 px-6 font-medium">Yield (MPa)</th>
                     <th class="py-3 px-6 font-medium">Score</th>
                     <th class="py-3 px-6 font-medium">Grade</th>
+                    <th class="py-3 px-3 font-medium w-10"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
                 {% for r in batch_results %}
-                <tr class="hover:bg-surface-container/20 transition-colors cursor-pointer" onclick="window.location='/?id={{ r.id }}'">
-                    <td class="py-3 px-6 font-mono text-xs text-on-surface">{{ r.filename }}</td>
+                <tr class="hover:bg-surface-container/20 transition-colors group">
+                    <td class="py-3 px-6 font-mono text-xs text-on-surface cursor-pointer" onclick="window.location='/?id={{ r.id }}'">{{ r.filename }}</td>
                     <td class="py-3 px-6 text-on-surface-variant">{{ r.material_type }}</td>
                     <td class="py-3 px-6 text-on-surface">{{ r.properties.ultimate_tensile_mpa or '---' }}</td>
                     <td class="py-3 px-6 text-on-surface">{{ r.properties.yield_strength_mpa or '---' }}</td>
@@ -528,6 +540,12 @@
                     <td class="py-3 px-6">
                         {% set g_color = 'tertiary-fixed' if r.quality.score >= 80 else ('primary' if r.quality.score >= 60 else 'error') %}
                         <span class="text-xs font-bold text-{{ g_color }}">{{ r.quality.grade }}</span>
+                    </td>
+                    <td class="py-3 px-3">
+                        <button onclick="event.stopPropagation(); fetch('/api/results/{{ r.id }}',{method:'DELETE'}).then(()=>location.reload())" 
+                            class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-error/10 text-on-surface-variant hover:text-error">
+                            <span class="material-symbols-outlined text-[16px]">close</span>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -632,91 +650,92 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideUpload
 // ── Chart.js Stress-Strain ──
 const curveData = {{ current.curve | tojson }};
 
-const ctx = document.getElementById('stressStrainChart').getContext('2d');
-const chartData = {
-    labels: curveData.strain,
-    datasets: [{
-        label: 'Stress-Strain',
-        data: curveData.stress,
-        borderColor: '#bdf4ff',
-        backgroundColor: 'rgba(189, 244, 255, 0.05)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: true,
-        tension: 0.1,
-    }]
-};
+if (curveData.strain && curveData.strain.length > 0) {
+    const ctx = document.getElementById('stressStrainChart').getContext('2d');
 
-// Add annotation points
-const annotations = [];
-if (curveData.yield_point) {
-    chartData.datasets.push({
-        label: `Yield = ${curveData.yield_point.stress.toFixed(0)} MPa`,
-        data: [{x: curveData.yield_point.strain, y: curveData.yield_point.stress}],
-        borderColor: '#62ff96',
-        backgroundColor: '#62ff96',
-        pointRadius: 7,
-        pointStyle: 'circle',
-        showLine: false,
-    });
-}
-if (curveData.uts_point) {
-    chartData.datasets.push({
-        label: `UTS = ${curveData.uts_point.stress.toFixed(0)} MPa`,
-        data: [{x: curveData.uts_point.strain, y: curveData.uts_point.stress}],
-        borderColor: '#ffb4ab',
-        backgroundColor: '#ffb4ab',
-        pointRadius: 7,
-        pointStyle: 'triangle',
-        showLine: false,
-    });
-}
+    // Build {x,y} pairs for proper scatter+line rendering
+    const xyData = curveData.strain.map((s, i) => ({x: s, y: curveData.stress[i]}));
 
-new Chart(ctx, {
-    type: 'line',
-    data: chartData,
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-            legend: {
-                display: true,
-                position: 'top',
-                align: 'end',
-                labels: { color: '#c2c6d6', font: { size: 10, family: 'Inter' }, usePointStyle: true, padding: 15 }
-            },
-            tooltip: {
-                backgroundColor: 'rgba(15, 23, 62, 0.95)',
-                titleColor: '#dee0ff',
-                bodyColor: '#c2c6d6',
-                borderColor: 'rgba(66, 71, 83, 0.3)',
-                borderWidth: 1,
-                callbacks: {
-                    title: (items) => `Strain: ${Number(items[0].label).toFixed(4)} mm/mm`,
-                    label: (item) => `Stress: ${Number(item.raw).toFixed(1)} MPa`
-                }
-            }
-        },
-        scales: {
-            x: {
-                type: 'linear',
-                title: { display: true, text: 'Strain (mm/mm)', color: '#8b9cc7', font: { size: 11 } },
-                ticks: { color: '#8b9cc7', font: { size: 9 }, callback: v => v.toFixed(2) },
-                grid: { color: 'rgba(66, 71, 83, 0.15)' }
-            },
-            y: {
-                title: { display: true, text: 'Stress (MPa)', color: '#8b9cc7', font: { size: 11 } },
-                ticks: { color: '#8b9cc7', font: { size: 9 } },
-                grid: { color: 'rgba(66, 71, 83, 0.15)' }
-            }
-        },
-        parsing: false,
+    const chartData = {
+        datasets: [{
+            label: 'Stress-Strain',
+            data: xyData,
+            borderColor: '#bdf4ff',
+            backgroundColor: 'rgba(189, 244, 255, 0.05)',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: true,
+            tension: 0.1,
+            showLine: true,
+        }]
+    };
+
+    // Add yield point
+    if (curveData.yield_point) {
+        chartData.datasets.push({
+            label: `Yield = ${curveData.yield_point.stress.toFixed(0)} MPa`,
+            data: [{x: curveData.yield_point.strain, y: curveData.yield_point.stress}],
+            borderColor: '#62ff96',
+            backgroundColor: '#62ff96',
+            pointRadius: 7,
+            pointStyle: 'circle',
+            showLine: false,
+        });
     }
-});
+    // Add UTS point
+    if (curveData.uts_point) {
+        chartData.datasets.push({
+            label: `UTS = ${curveData.uts_point.stress.toFixed(0)} MPa`,
+            data: [{x: curveData.uts_point.strain, y: curveData.uts_point.stress}],
+            borderColor: '#ffb4ab',
+            backgroundColor: '#ffb4ab',
+            pointRadius: 7,
+            pointStyle: 'triangle',
+            showLine: false,
+        });
+    }
 
-// Fix parsing for scatter + line mix
-document.querySelector('#stressStrainChart').__chartjs = true;
+    new Chart(ctx, {
+        type: 'scatter',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: { color: '#c2c6d6', font: { size: 10, family: 'Inter' }, usePointStyle: true, padding: 15 }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 62, 0.95)',
+                    titleColor: '#dee0ff',
+                    bodyColor: '#c2c6d6',
+                    borderColor: 'rgba(66, 71, 83, 0.3)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: (item) => `Strain: ${item.parsed.x.toFixed(4)} | Stress: ${item.parsed.y.toFixed(1)} MPa`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Strain (mm/mm)', color: '#8b9cc7', font: { size: 11 } },
+                    ticks: { color: '#8b9cc7', font: { size: 9 }, callback: v => v.toFixed(2) },
+                    grid: { color: 'rgba(66, 71, 83, 0.15)' }
+                },
+                y: {
+                    title: { display: true, text: 'Stress (MPa)', color: '#8b9cc7', font: { size: 11 } },
+                    ticks: { color: '#8b9cc7', font: { size: 9 } },
+                    grid: { color: 'rgba(66, 71, 83, 0.15)' }
+                }
+            },
+        }
+    });
+}
 {% endif %}
 </script>
 </body>

@@ -366,6 +366,13 @@ async def download_pdf(result_id: str):
     return JSONResponse({"error": "Not found"}, status_code=404)
 
 
+@app.delete("/api/results/clear")
+async def clear_results():
+    """Tum sonuclari temizle."""
+    analysis_results.clear()
+    return JSONResponse({"status": "cleared"})
+
+
 @app.get("/api/results/{result_id}")
 async def get_result(result_id: str):
     """Tek sonuc detayi."""
@@ -373,6 +380,14 @@ async def get_result(result_id: str):
         if r["id"] == result_id:
             return JSONResponse(r)
     return JSONResponse({"error": "Not found"}, status_code=404)
+
+
+@app.delete("/api/results/{result_id}")
+async def delete_result(result_id: str):
+    """Tek sonucu sil."""
+    global analysis_results
+    analysis_results = [r for r in analysis_results if r["id"] != result_id]
+    return JSONResponse({"status": "deleted", "id": result_id})
 
 
 def _analyze_path(csv_path: Path) -> dict[str, Any] | None:
