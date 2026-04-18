@@ -136,6 +136,11 @@
         </div>
     </div>
     <div class="flex items-center gap-6">
+        {% if has_data %}
+        <a href="/api/report/{{ current.id }}/pdf" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-tertiary-fixed/20 text-tertiary-fixed hover:bg-tertiary-fixed/5 transition-colors text-sm font-medium">
+            <span class="material-symbols-outlined text-sm">picture_as_pdf</span> Download PDF
+        </a>
+        {% endif %}
         <button onclick="showUploadModal()" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-primary hover:bg-primary/5 transition-colors text-sm font-medium">
             <span class="material-symbols-outlined text-sm">upload</span> Upload Data
         </button>
@@ -189,6 +194,39 @@
         </div>
         <h1 class="text-3xl font-bold tracking-tight text-on-surface">Stress-Strain Integrity</h1>
     </div>
+    {% if has_data %}
+    <div class="flex flex-wrap items-center gap-3">
+        <!-- Vendor Badge -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant/15 text-sm">
+            <span class="material-symbols-outlined text-primary text-[16px]">precision_manufacturing</span>
+            <span class="text-on-surface-variant">{{ current.vendor.name }}</span>
+            {% if current.vendor.confidence > 0 %}
+            <span class="text-[10px] text-tertiary-fixed bg-tertiary-fixed/10 px-1.5 py-0.5 rounded font-medium">{{ current.vendor.confidence }}%</span>
+            {% endif %}
+        </div>
+        <!-- Encoding / Separator -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant/15 text-sm">
+            <span class="material-symbols-outlined text-on-surface-variant text-[16px]">code</span>
+            <span class="text-on-surface-variant font-mono text-xs">{{ current.vendor.encoding }} · sep={{ current.vendor.separator }}</span>
+        </div>
+        <!-- Strain Rate -->
+        {% if current.strain_rate.range %}
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm
+            {% if current.strain_rate.compliant %}bg-tertiary-fixed/5 border-tertiary-fixed/20{% else %}bg-error/5 border-error/20{% endif %}">
+            <span class="material-symbols-outlined text-[16px] {% if current.strain_rate.compliant %}text-tertiary-fixed{% else %}text-error{% endif %}">speed</span>
+            <span class="text-on-surface-variant">ISO Range {{ current.strain_rate.range }}</span>
+            {% if current.strain_rate.code %}
+            <span class="text-[10px] font-mono text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">{{ current.strain_rate.code }}</span>
+            {% endif %}
+            {% if current.strain_rate.compliant %}
+            <span class="material-symbols-outlined text-tertiary-fixed text-[14px]">check_circle</span>
+            {% else %}
+            <span class="material-symbols-outlined text-error text-[14px]">cancel</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
 {% if not has_data %}
@@ -501,6 +539,28 @@
 
 {% endif %}
 </main>
+
+<!-- LEGAL DISCLAIMER FOOTER -->
+{% if has_data %}
+<footer class="max-w-[1600px] mx-auto px-6 md:px-8 pb-8">
+    <div class="glass-panel rounded-xl p-4 border-l-4 border-l-outline-variant/30">
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-on-surface-variant text-[18px] mt-0.5">gavel</span>
+            <div>
+                <p class="text-[10px] text-on-surface-variant leading-relaxed">
+                    <strong>YASAL NOT:</strong> Bu rapordaki hesaplamalar ISO 6892-1:2019 metodolojisine göre yapılmıştır.
+                    Bu yazılım herhangi bir akreditasyon kuruluşu (TÜRKAK, EA, ILAC vb.) tarafından akredite edilmemiş veya sertifikalandırılmamıştır.
+                    Akredite test raporu ancak ISO/IEC 17025 kapsamında akredite edilmiş bir laboratuvar tarafından düzenlenebilir.
+                </p>
+                <p class="text-[10px] text-on-surface-variant/60 leading-relaxed mt-1">
+                    <strong>LEGAL NOTICE:</strong> Calculations performed according to ISO 6892-1:2019. This software is NOT accredited or certified by any accreditation body.
+                    An accredited test report can only be issued by a laboratory accredited to ISO/IEC 17025.
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+{% endif %}
 
 <!-- FAB -->
 <button onclick="showUploadModal()" class="fixed bottom-8 right-8 w-14 h-14 rounded-xl flex items-center justify-center ambient-shadow btn-primary transition-all z-50" style="background: linear-gradient(135deg, #afc6ff, #528dff);">

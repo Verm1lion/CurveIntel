@@ -19,7 +19,7 @@ from typing import Any
 
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -39,7 +39,7 @@ from src.pipeline.anomaly import (
     GripSlippageDetector, SensorSaturationDetector,
     NoiseAnalyzer, CurveIntegrityChecker, PropertyValidator,
 )
-from src.pipeline.reporting import _quality_score
+from src.pipeline.reporting import _quality_score, generate_pdf_report
 
 # ── App setup ──
 app = FastAPI(title="CurveIntel", version="1.0.0")
@@ -176,6 +176,18 @@ def ctx_to_dict(ctx: AnalysisContext, filename: str) -> dict[str, Any]:
 
     result_id = str(uuid.uuid4())[:8]
 
+    # Vendor detection info
+    vendor_name = ctx.extra.get("vendor_name", "Generic CSV")
+    vendor_confidence = ctx.extra.get("vendor_confidence", 0)
+    detected_encoding = ctx.extra.get("detected_encoding", "utf-8")
+    detected_separator = ctx.extra.get("detected_separator", ",")
+
+    # Strain rate info
+    strain_rate_range = ctx.extra.get("strain_rate_range", None)
+    strain_rate_code = ctx.extra.get("strain_rate_code", None)
+    strain_rate_value = ctx.extra.get("strain_rate_median", None)
+    strain_rate_compliant = ctx.extra.get("strain_rate_compliant", None)
+
     return {
         "id": result_id,
         "filename": filename,
@@ -194,7 +206,7 @@ def ctx_to_dict(ctx: AnalysisContext, filename: str) -> dict[str, Any]:
             "strength_coefficient_k": round(p.strength_coefficient_k, 1) if p.strength_coefficient_k else None,
             "toughness_mj_m3": round(p.toughness_mj_m3, 2) if p.toughness_mj_m3 else None,
             "yield_behavior": p.yield_behavior.value,
-            "method_tags": dict(p.method_tags),  # ISO 17025 Cl. 7.8.2.1 izlenebilirlik
+            "method_tags": dict(p.method_tags),
         },
         "quality": {
             "score": round(score, 0),
@@ -206,6 +218,18 @@ def ctx_to_dict(ctx: AnalysisContext, filename: str) -> dict[str, Any]:
             "elastic_sm_rel": round(ctx.extra.get("elastic_sm_rel", 0), 2),
             "elastic_n_points": ctx.extra.get("elastic_n_points"),
             "elastic_iterations": ctx.extra.get("elastic_iterations"),
+        },
+        "vendor": {
+            "name": vendor_name,
+            "confidence": vendor_confidence,
+            "encoding": detected_encoding,
+            "separator": detected_separator,
+        },
+        "strain_rate": {
+            "range": strain_rate_range,
+            "code": strain_rate_code,
+            "value": round(strain_rate_value, 6) if strain_rate_value else None,
+            "compliant": strain_rate_compliant,
         },
         "curve": {
             "strain": strain_list,
@@ -269,6 +293,77 @@ async def analyze(file: UploadFile = File(...)):
 async def get_results():
     """Tum batch sonuclari."""
     return JSONResponse({"results": analysis_results})
+
+
+@app.get("/api/report/{result_id}/pdf")
+async def download_pdf(result_id: str):
+    """PDF rapor indir."""
+    for r in analysis_results:
+        if r["id"] == result_id:
+            # Rebuild context minimally for PDF
+            pdf_path = UPLOAD_DIR / f"report_{result_id}.pdf"
+            from src.pipeline.base import AnalysisContext as AC, MechanicalProperties
+            ctx = AC()
+            # We need the original ctx — for now generate a summary PDF
+            # from the stored result dict
+            props_text = []
+            p = r["properties"]
+            if p.get("elastic_modulus_gpa"): props_text.append(f"E = {p['elastic_modulus_gpa']} GPa")
+            if p.get("yield_strength_mpa"): props_text.append(f"Rp0.2 = {p['yield_strength_mpa']} MPa")
+            if p.get("ultimate_tensile_mpa"): props_text.append(f"Rm = {p['ultimate_tensile_mpa']} MPa")
+            if p.get("elongation_at_break_pct"): props_text.append(f"At = {p['elongation_at_break_pct']}%")
+
+            # Simple PDF with reportlab
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+
+            doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
+            styles = getSampleStyleSheet()
+            elements = []
+            elements.append(Paragraph("CurveIntel Analysis Report", styles["Title"]))
+            elements.append(Spacer(1, 0.5 * cm))
+            elements.append(Paragraph(f"File: {r['filename']}", styles["Normal"]))
+            elements.append(Paragraph(f"Date: {r['timestamp']}", styles["Normal"]))
+            elements.append(Paragraph(f"Material: {r['material_type']}", styles["Normal"]))
+            elements.append(Paragraph(f"Vendor: {r.get('vendor', {}).get('name', 'Generic')}", styles["Normal"]))
+            elements.append(Paragraph(f"Quality: {r['quality']['score']}/100 ({r['quality']['grade_label']})", styles["Normal"]))
+            elements.append(Spacer(1, 0.5 * cm))
+            elements.append(Paragraph("Mechanical Properties", styles["Heading2"]))
+            rows = [["Property", "Value"]]
+            for line in props_text:
+                k, v = line.split(" = ")
+                rows.append([k, v])
+            if p.get("strain_hardening_n"): rows.append(["n", str(p["strain_hardening_n"])])
+            if p.get("toughness_mj_m3"): rows.append(["Ut", f"{p['toughness_mj_m3']} MJ/m³"])
+            t = Table(rows, colWidths=[6*cm, 8*cm])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1565c0")),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+            ]))
+            elements.append(t)
+            elements.append(Spacer(1, 1 * cm))
+            elements.append(Paragraph(
+                "<i>LEGAL NOTICE: Calculations performed per ISO 6892-1:2019. "
+                "This software is NOT accredited by any accreditation body.</i>",
+                styles["Normal"]
+            ))
+            doc.build(elements)
+
+            def iterfile():
+                with open(pdf_path, "rb") as f:
+                    yield from f
+
+            return StreamingResponse(
+                iterfile(),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=CurveIntel_{result_id}.pdf"}
+            )
+    return JSONResponse({"error": "Not found"}, status_code=404)
 
 
 @app.get("/api/results/{result_id}")
