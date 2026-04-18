@@ -70,6 +70,8 @@ class ElasticModulusDetector(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — E hesaplamasi atlandi.")
 
         stress = ctx.stress
         strain = ctx.strain
@@ -326,6 +328,8 @@ class YieldDetector(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — Yield hesaplamasi atlandi.")
 
         stress = ctx.stress
         strain = ctx.strain
@@ -602,6 +606,8 @@ class UTSDetector(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — UTS hesaplamasi atlandi.")
 
         stress = ctx.stress
         strain = ctx.strain
@@ -680,6 +686,8 @@ class ElongationDetector(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — Elongation hesaplamasi atlandi.")
 
         uts = ctx.properties.ultimate_tensile_mpa
         if uts is None:
@@ -768,6 +776,8 @@ class NeckingDetector(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — Necking hesaplamasi atlandi.")
 
         stress = ctx.stress
         strain = ctx.strain
@@ -865,6 +875,8 @@ class StrainHardeningFitter(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — StrainHardening hesaplamasi atlandi.")
 
         stress = ctx.stress
         strain = ctx.strain
@@ -958,6 +970,8 @@ class ToughnessCalculator(PipelineStep):
     def process(self, ctx: AnalysisContext) -> StepResult:
         if not ctx.has_data:
             return self._failure("Veri yok.")
+        if ctx.extra.get("is_cyclic"):
+            return self._warning("Siklik veri — Toughness hesaplamasi atlandi.")
 
         # Sadece pozitif stress bolgesi (cekme)
         positive_mask = ctx.stress > 0

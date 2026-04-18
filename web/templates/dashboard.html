@@ -243,6 +243,23 @@
 </div>
 {% else %}
 
+{% if current.is_cyclic %}
+<!-- CYCLIC DATA WARNING BANNER -->
+<div class="glass-panel rounded-xl p-4 mb-6 border-l-4 border-l-error/60 bg-error/5 fade-up">
+    <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-error text-xl">sync</span>
+        <div>
+            <p class="text-sm font-semibold text-error">Cyclic Loading Detected</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+                This file contains cyclic/ratcheting data ({{ current.strain_reversals }} strain reversals detected).
+                Mechanical properties (E, Yield, UTS) are <strong>not calculated</strong> for non-monotonic data.
+                CurveIntel v1.0 supports monotonic tensile tests only.
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- HERO METRICS -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <!-- E Modulus -->
@@ -619,6 +636,15 @@ async function uploadFile(file) {
     const progressBar = document.getElementById('progressBar');
     
     progress.classList.remove('hidden');
+
+    // Upload guard: reject metadata/attributes files
+    if (file.name.includes('-attributes') || file.name.startsWith('._')) {
+        statusEl.textContent = 'This is a metadata file, not stress-strain data. Please select a data file.';
+        statusEl.style.color = '#ffb4ab';
+        progressBar.style.width = '0%';
+        return;
+    }
+
     statusEl.textContent = `Analyzing ${file.name}...`;
     progressBar.style.width = '30%';
     

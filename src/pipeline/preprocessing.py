@@ -300,3 +300,80 @@ class SavitzkyGolayFilter(PipelineStep):
             f"SG filtresi uygulandı (w={window}, p={self._polyorder}). "
             f"Peak kayıp: {loss_pct:.3f}%"
         )
+
+
+class MonotonicityChecker(PipelineStep):
+    """
+    Strain serisinin monotonic artan olup olmadigini kontrol eder.
+
+    Siklik yukleme (cyclic loading), ratcheting veya yukleme-bosaltma
+    verilerini tespit eder. Bu veriler monotonic cekme testi degil,
+    dolayisiyla E, Yield, UTS hesaplamalari anlamsiz sonuc uretir.
+
+    Yontem:
+    1. Strain diff serisinde negatif gecisleri (reversals) say
+    2. Reversal > threshold ise → cyclic veri olarak isaretle
+    3. ctx.extra["is_cyclic"] = True set ederek extraction step'lerini uyar
+    """
+
+    def __init__(self, reversal_threshold: int = 5, min_drop_ratio: float = 0.001):
+        """
+        Args:
+            reversal_threshold: Kac reversal tespit edilirse siklik sayilir
+            min_drop_ratio: Strain max'inin yuzde kaci kadar dusus reversal sayilir
+        """
+        self._threshold = reversal_threshold
+        self._min_drop = min_drop_ratio
+
+    @property
+    def name(self) -> str:
+        return "MonotonicityChecker"
+
+    def process(self, ctx: AnalysisContext) -> StepResult:
+        if not ctx.has_data:
+            return self._failure("Veri yok.")
+
+        strain = ctx.strain
+        strain_range = np.max(strain) - np.min(strain)
+
+        if strain_range <= 0:
+            ctx.extra["is_cyclic"] = False
+            return self._warning("Strain range sifir — veri bozuk olabilir.")
+
+        # ── Anlamli reversal tespiti ──
+        # Yontem: Running maximum'dan belirli bir oranda dusus → reversal
+        # Bu, gurultu kaynakli kucuk dalgalanmalari filtreler.
+        running_max = np.maximum.accumulate(strain)
+        drops = running_max - strain  # Her noktada max'tan ne kadar dustuk
+
+        # Anlamli dusus esigi: strain range'in %1'i (gurultuyu filtreler)
+        significant_drop = strain_range * 0.01
+
+        # Reversal = strain running max'tan anlamli dusup sonra tekrar yukselme
+        in_reversal = drops > significant_drop
+        # Reversal baslangiclarini say (False → True gecisleri)
+        reversal_starts = np.diff(in_reversal.astype(int))
+        n_reversals = int(np.sum(reversal_starts == 1))
+
+        ctx.extra["is_cyclic"] = bool(n_reversals >= self._threshold)
+        ctx.extra["strain_reversals"] = n_reversals
+
+        if ctx.extra["is_cyclic"]:
+            ctx.add_anomaly(
+                anomaly_type=AnomalyType.NON_MONOTONIC,
+                confidence=0.95,
+                description=(
+                    f"Siklik yukleme tespit edildi ({n_reversals} reversal). "
+                    f"Monotonic cekme testi degil — property hesaplamalari atlanacak."
+                ),
+                severity="critical",
+            )
+            return self._warning(
+                f"SIKLIK VERI: {n_reversals} strain reversal tespit edildi "
+                f"(threshold={self._threshold}). Property extraction atlanacak."
+            )
+
+        return self._success(
+            f"Monotonic veri dogrulandi ({n_reversals} minor reversal, "
+            f"threshold={self._threshold})."
+        )

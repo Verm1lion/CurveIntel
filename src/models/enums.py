@@ -36,6 +36,7 @@ class AnomalyType(str, Enum):
     SENSOR_SATURATION = "sensor_saturation"     # Sensör saturasyonu
     HIGH_NOISE = "high_noise"                   # Yüksek gürültü
     DOUBLE_YIELD = "double_yield"               # Çift akma (anomali DEĞİL, bilgi)
+    NON_MONOTONIC = "non_monotonic"             # Siklik/non-monotonic yükleme
 
 
 class StepStatus(str, Enum):

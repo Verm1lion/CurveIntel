@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.pipeline.base import AnalysisContext, Pipeline
 from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
 from src.pipeline.preprocessing import (
-    Resampler, SavitzkyGolayFilter, SpikeFilter, ToeCompensation,
+    MonotonicityChecker, Resampler, SavitzkyGolayFilter, SpikeFilter, ToeCompensation,
 )
 from src.pipeline.extraction import (
     ElasticModulusDetector, ElongationDetector, NeckingDetector,
@@ -66,6 +66,7 @@ def build_pipeline(csv_path: Path) -> Pipeline:
         SchemaDetector(),
         UnitConverter(),
         SpikeFilter(window_size=5, threshold_sigma=3.0),
+        MonotonicityChecker(),
         ToeCompensation(),
         Resampler(n_points=2000),
         SavitzkyGolayFilter(window_length=21, polyorder=3),
@@ -195,6 +196,8 @@ def ctx_to_dict(ctx: AnalysisContext, filename: str) -> dict[str, Any]:
         "material_type": ctx.metadata.material_type.value if ctx.metadata.material_type else "unknown",
         "stress_type": ctx.stress_type.value,
         "n_points": ctx.n_points,
+        "is_cyclic": ctx.extra.get("is_cyclic", False),
+        "strain_reversals": ctx.extra.get("strain_reversals", 0),
         "properties": {
             "elastic_modulus_gpa": round(p.elastic_modulus_gpa, 1) if p.elastic_modulus_gpa else None,
             "yield_strength_mpa": round(p.yield_strength_mpa, 1) if p.yield_strength_mpa else None,
