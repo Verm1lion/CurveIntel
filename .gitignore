@@ -32,6 +32,7 @@ reports/*.csv
 reports/*.png
 uploads/*.csv
 uploads/*.tmp
+uploads/*.pdf
 
 # Test artifacts
 tests/*.png
