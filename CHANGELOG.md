@@ -34,6 +34,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Approved legal disclaimer text (TR/EN)
 - Report UUID traceability (CI-XXXXXX format)
 
+## [1.1.0] - 2026-04-19
+
+### Added
+- **MonotonicityChecker:** Running-maximum drop algorithm ile siklik/cyclic veri tespiti
+  - %1 strain range threshold, >=5 reversal → cyclic flag
+  - SpikeFilter sonrasi, ToeCompensation oncesi calisir (ham veri uzerinde)
+- **Extraction Guards:** 7 detector'a `is_cyclic` guard eklendi — siklik veride saçma property hesabi engellendi
+- **NON_MONOTONIC anomaly type:** AnomalyType enum'a eklendi
+- **Per-file PDF download:** Batch Results tablosundaki her satira PDF indirme butonu eklendi
+- **Cyclic warning banner:** Dashboard'da siklik veri uyarisi gosteriliyor
+- **Upload guard:** `-attributes.csv` metadata dosyalari client-side reddediliyor
+
+### Changed
+- **PDF rapor:** API endpoint artik `reporting.py`'deki profesyonel 3 sayfalik ISO raporunu kullaniyor
+  (grafik + anomali tablosu + pipeline log + imza alani + yasal not)
+- **Kalite skoru esikleri:** 5 kademeli sisteme gecildi:
+  - A+ (>=85, Mukemmel), A (>=70, Iyi), B (>=55, Dikkatle Kullanilabilir), C (>=40, Dusuk), D (<40, Guvenilmez)
+
+### Fixed
+- PDF endpoint basit tek sayfalik ozet uretiyor, `generate_pdf_report()` hic cagrilmiyordu
+- Navbar'daki belirsiz "Download PDF" butonu kaldirildi (birden fazla dosyada hangi dosya belli degildi)
+
+### Removed
+- Navbar'daki global "Download PDF" butonu (per-file buton ile degistirildi)
+
+### Validation
+- **472 dosya audit:** 208 FULL_RESULT + 243 CYCLIC + 21 NO_DATA + 0 ERROR
+- Siklik dosyalarda UTS=34786 MPa gibi sacma sonuclar artik uretilmiyor
+
 ## [Unreleased]
 - Vector BTC TESLA CSV profile
 - Docker deployment (FAZ 12)

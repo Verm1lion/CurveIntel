@@ -12,10 +12,12 @@ raporlar uretir.
 
 - **7 mekanik ozellik**: E, Rp0.2/ReH/ReL, Rm, At, Ag, n, Ut
 - **5 anomali tespiti**: Grip kaymasi, sensor saturasyonu, gurultu, egri butunlugu, ozellik dogrulama
-- **Batch QC**: Dixon Q10 + Grubbs outlier, CoV, 95% CI, SPC (Nelson 8 kuralı)
+- **Siklik veri tespiti**: MonotonicityChecker ile cyclic/ratcheting dosyalar otomatik tespit edilir
+- **Batch QC**: Dixon Q10 + Grubbs outlier, CoV, 95% CI, SPC (Nelson 8 kurali)
 - **8 vendor destegi**: ZwickRoell, Instron, Shimadzu, MTS, Tinius Olsen, DEVOTRANS, Hegewald, NIST
 - **Coklu dil**: DE, EN, JP, TR, FR, ES kolon isimleri
-- **ISO 17025 uyumlu raporlama**: PDF + JSON + CSV export
+- **ISO 17025 uyumlu raporlama**: PDF (grafik + anomali + pipeline log + imza alani) + JSON + CSV export
+- **5 kademeli kalite skoru**: A+ (Mukemmel) → D (Guvenilmez)
 
 ## Hizli Baslangic
 
@@ -57,6 +59,43 @@ docker compose up -d
 # http://localhost:8000
 ```
 
+## Pipeline Adimlari
+
+```
+CSV Dosyasi
+  → DataLoader (encoding/separator auto-detect)
+  → SchemaDetector (vendor profil eslesme)
+  → UnitConverter (kN→MPa, mm→strain)
+  → SpikeFilter (median filtre)
+  → MonotonicityChecker (siklik veri tespiti)
+  → ToeCompensation (bas bolge duzeltme)
+  → Resampler (2000 nokta)
+  → SavitzkyGolayFilter (gurultu azaltma)
+  → ElasticModulusDetector (OLS / Chord)
+  → YieldDetector (0.2% offset / ReH-ReL)
+  → UTSDetector (max stress)
+  → ElongationDetector (At / Ag)
+  → NeckingDetector (Considere kriteri)
+  → StrainHardeningFitter (Hollomon n-K)
+  → ToughnessCalculator (trapez integral)
+  → GripSlippageDetector
+  → SensorSaturationDetector
+  → NoiseAnalyzer (SNR)
+  → CurveIntegrityChecker (truncation)
+  → PropertyValidator (fiziksel tutarlilik)
+→ PDF Rapor (ISO 17025 sablonu)
+```
+
+## Kalite Skoru
+
+| Skor | Grade | Anlami |
+|------|-------|--------|
+| >= 85 | **A+ (Mukemmel)** | Yuksek guvenilirlik, dogrudan kullanilabilir |
+| >= 70 | **A (Iyi)** | Guvenilir sonuclar |
+| >= 55 | **B (Dikkatle Kullanilabilir)** | Bazi sorunlar mevcut |
+| >= 40 | **C (Dusuk Guvenilirlik)** | Dogrulama gerekli |
+| < 40 | **D (Guvenilmez)** | Kullanilmamali |
+
 ## Desteklenen CSV Formatlari
 
 | Vendor | Profil | Encoding | Ayirici |
@@ -79,37 +118,45 @@ docker compose up -d
 | `/api/health` | GET | Health check |
 | `/api/analyze` | POST | CSV upload + analiz |
 | `/api/results` | GET | Tum sonuclar (JSON) |
-| `/api/curve/{id}` | GET | Stress-strain egri verisi |
+| `/api/report/{id}/pdf` | GET | ISO PDF rapor indirme |
+| `/api/results/{id}` | DELETE | Tek sonuc silme |
+| `/api/results/clear` | DELETE | Tum sonuclari temizle |
 
-## Validasyon
+## Validasyon (472 Dosya Audit)
 
-```bash
-# NIST referans veri seti ile dogrulama
-python test_validation.py
-# 96 dosya, 4 malzeme, %100 pass rate
+```
+FULL_RESULT:    208 (%44.1)  — Basarili monotonic analiz
+CYCLIC:         243 (%51.5)  — Siklik veri (dogru tespit, atlanma)
+NO_DATA:         21 (%4.4)   — Metadata dosyalari
+ERROR:            0 (%0.0)   — Sifir crash
 ```
 
 ## Proje Yapisi
 
 ```
 curveintel/
-  src/pipeline/
-    base.py           # Pipeline altyapisi
-    ingestion.py       # CSV okuma + vendor detection
-    vendor_profiles.py # 8 vendor profili
-    preprocessing.py   # Filtreleme + resampling
-    extraction.py      # Mekanik ozellik hesaplama
-    anomaly.py         # Anomali tespiti
-    reporting.py       # PDF/JSON/CSV export
-    batch_qc.py        # Istatistik + SPC
+  src/
+    pipeline/
+      base.py              # Pipeline altyapisi + AnalysisContext
+      ingestion.py          # CSV okuma + vendor detection
+      vendor_profiles.py    # 8 vendor profili
+      preprocessing.py      # Filtreleme + resampling + MonotonicityChecker
+      extraction.py         # 7 mekanik ozellik hesaplama
+      anomaly.py            # 5 anomali dedektoru
+      reporting.py          # PDF rapor (grafik + anomali + pipeline log)
+      batch_qc.py           # Istatistik + SPC
+    models/
+      enums.py              # AnomalyType, StressType, MaterialType
   web/
-    app.py             # FastAPI backend
-    templates/         # HTML sablonlari
-    static/            # CSS/JS
+    app.py                  # FastAPI backend
+    templates/
+      dashboard.html        # Ana dashboard
+    static/                 # CSS/JS
+  tests/
+    diagnostic_all_csv.py   # 472 dosya audit script
   docs/
     algorithm_specification.md
-  test_validation.py   # Regresyon test suite
-  batch_analyze.py     # CLI batch analiz
+  batch_analyze.py          # CLI batch analiz
   Dockerfile
   docker-compose.yml
   CHANGELOG.md

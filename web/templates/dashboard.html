@@ -136,11 +136,7 @@
         </div>
     </div>
     <div class="flex items-center gap-6">
-        {% if has_data %}
-        <a href="/api/report/{{ current.id }}/pdf" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-tertiary-fixed/20 text-tertiary-fixed hover:bg-tertiary-fixed/5 transition-colors text-sm font-medium">
-            <span class="material-symbols-outlined text-sm">picture_as_pdf</span> Download PDF
-        </a>
-        {% endif %}
+
         <button onclick="showUploadModal()" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-primary hover:bg-primary/5 transition-colors text-sm font-medium">
             <span class="material-symbols-outlined text-sm">upload</span> Upload Data
         </button>
@@ -538,6 +534,7 @@
                     <th class="py-3 px-6 font-medium">Yield (MPa)</th>
                     <th class="py-3 px-6 font-medium">Score</th>
                     <th class="py-3 px-6 font-medium">Grade</th>
+                    <th class="py-3 px-4 font-medium text-center">Report</th>
                     <th class="py-3 px-3 font-medium w-10"></th>
                 </tr>
             </thead>
@@ -557,6 +554,13 @@
                     <td class="py-3 px-6">
                         {% set g_color = 'tertiary-fixed' if r.quality.score >= 80 else ('primary' if r.quality.score >= 60 else 'error') %}
                         <span class="text-xs font-bold text-{{ g_color }}">{{ r.quality.grade }}</span>
+                    </td>
+                    <td class="py-3 px-4 text-center">
+                        <a href="/api/report/{{ r.id }}/pdf" onclick="event.stopPropagation()" 
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-tertiary-fixed/10 border border-tertiary-fixed/20 text-tertiary-fixed hover:bg-tertiary-fixed/20 transition-colors text-xs font-medium"
+                            title="Download PDF Report">
+                            <span class="material-symbols-outlined text-[14px]">picture_as_pdf</span> PDF
+                        </a>
                     </td>
                     <td class="py-3 px-3">
                         <button onclick="event.stopPropagation(); fetch('/api/results/{{ r.id }}',{method:'DELETE'}).then(()=>location.reload())" 

@@ -50,6 +50,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 # ── In-memory results store ──
 analysis_results: list[dict[str, Any]] = []
+analysis_contexts: dict[str, AnalysisContext] = {}  # id -> ctx for PDF generation
 UPLOAD_DIR = BASE_DIR.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -287,6 +288,7 @@ async def analyze(file: UploadFile = File(...)):
         ctx = pipeline.run(ctx)
         result = ctx_to_dict(ctx, file.filename)
         analysis_results.append(result)
+        analysis_contexts[result["id"]] = ctx  # PDF icin sakla
         return JSONResponse({"status": "success", "data": result})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
@@ -300,62 +302,59 @@ async def get_results():
 
 @app.get("/api/report/{result_id}/pdf")
 async def download_pdf(result_id: str):
-    """PDF rapor indir."""
+    """PDF rapor indir — reporting.py'deki profesyonel raporu kullanir."""
     for r in analysis_results:
         if r["id"] == result_id:
-            # Rebuild context minimally for PDF
             pdf_path = UPLOAD_DIR / f"report_{result_id}.pdf"
-            from src.pipeline.base import AnalysisContext as AC, MechanicalProperties
-            ctx = AC()
-            # We need the original ctx — for now generate a summary PDF
-            # from the stored result dict
-            props_text = []
-            p = r["properties"]
-            if p.get("elastic_modulus_gpa"): props_text.append(f"E = {p['elastic_modulus_gpa']} GPa")
-            if p.get("yield_strength_mpa"): props_text.append(f"Rp0.2 = {p['yield_strength_mpa']} MPa")
-            if p.get("ultimate_tensile_mpa"): props_text.append(f"Rm = {p['ultimate_tensile_mpa']} MPa")
-            if p.get("elongation_at_break_pct"): props_text.append(f"At = {p['elongation_at_break_pct']}%")
 
-            # Simple PDF with reportlab
-            from reportlab.lib.pagesizes import A4
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-            from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.lib import colors
-            from reportlab.lib.units import cm
+            ctx = analysis_contexts.get(result_id)
+            if ctx:
+                # Profesyonel rapor: grafik, anomali, pipeline log, imza alani
+                generate_pdf_report(
+                    ctx,
+                    output_path=pdf_path,
+                    company_name="CurveIntel Analysis Engine",
+                    test_standard="ISO 6892-1:2019",
+                )
+            else:
+                # Context yok (eski sonuc) — fallback basit rapor
+                from reportlab.lib.pagesizes import A4
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.lib import colors
+                from reportlab.lib.units import cm
 
-            doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
-            styles = getSampleStyleSheet()
-            elements = []
-            elements.append(Paragraph("CurveIntel Analysis Report", styles["Title"]))
-            elements.append(Spacer(1, 0.5 * cm))
-            elements.append(Paragraph(f"File: {r['filename']}", styles["Normal"]))
-            elements.append(Paragraph(f"Date: {r['timestamp']}", styles["Normal"]))
-            elements.append(Paragraph(f"Material: {r['material_type']}", styles["Normal"]))
-            elements.append(Paragraph(f"Vendor: {r.get('vendor', {}).get('name', 'Generic')}", styles["Normal"]))
-            elements.append(Paragraph(f"Quality: {r['quality']['score']}/100 ({r['quality']['grade_label']})", styles["Normal"]))
-            elements.append(Spacer(1, 0.5 * cm))
-            elements.append(Paragraph("Mechanical Properties", styles["Heading2"]))
-            rows = [["Property", "Value"]]
-            for line in props_text:
-                k, v = line.split(" = ")
-                rows.append([k, v])
-            if p.get("strain_hardening_n"): rows.append(["n", str(p["strain_hardening_n"])])
-            if p.get("toughness_mj_m3"): rows.append(["Ut", f"{p['toughness_mj_m3']} MJ/m³"])
-            t = Table(rows, colWidths=[6*cm, 8*cm])
-            t.setStyle(TableStyle([
-                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1565c0")),
-                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-            ]))
-            elements.append(t)
-            elements.append(Spacer(1, 1 * cm))
-            elements.append(Paragraph(
-                "<i>LEGAL NOTICE: Calculations performed per ISO 6892-1:2019. "
-                "This software is NOT accredited by any accreditation body.</i>",
-                styles["Normal"]
-            ))
-            doc.build(elements)
+                doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
+                styles = getSampleStyleSheet()
+                elements = []
+                elements.append(Paragraph("CurveIntel Analysis Report", styles["Title"]))
+                elements.append(Spacer(1, 0.5 * cm))
+                elements.append(Paragraph(f"File: {r['filename']}", styles["Normal"]))
+                elements.append(Paragraph(f"Date: {r['timestamp']}", styles["Normal"]))
+                elements.append(Paragraph(f"Quality: {r['quality']['score']}/100", styles["Normal"]))
+                elements.append(Spacer(1, 0.5 * cm))
+                elements.append(Paragraph("Mechanical Properties", styles["Heading2"]))
+                p = r["properties"]
+                rows = [["Property", "Value"]]
+                if p.get("elastic_modulus_gpa"): rows.append(["E", f"{p['elastic_modulus_gpa']} GPa"])
+                if p.get("yield_strength_mpa"): rows.append(["Rp0.2", f"{p['yield_strength_mpa']} MPa"])
+                if p.get("ultimate_tensile_mpa"): rows.append(["Rm", f"{p['ultimate_tensile_mpa']} MPa"])
+                if p.get("elongation_at_break_pct"): rows.append(["At", f"{p['elongation_at_break_pct']}%"])
+                t = Table(rows, colWidths=[6*cm, 8*cm])
+                t.setStyle(TableStyle([
+                    ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1565c0")),
+                    ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                    ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+                ]))
+                elements.append(t)
+                elements.append(Spacer(1, 1 * cm))
+                elements.append(Paragraph(
+                    "<i>Context not available — simplified report. "
+                    "Re-upload the file for the full ISO report.</i>",
+                    styles["Normal"]
+                ))
+                doc.build(elements)
 
             def iterfile():
                 with open(pdf_path, "rb") as f:
@@ -373,6 +372,7 @@ async def download_pdf(result_id: str):
 async def clear_results():
     """Tum sonuclari temizle."""
     analysis_results.clear()
+    analysis_contexts.clear()
     return JSONResponse({"status": "cleared"})
 
 
@@ -390,20 +390,21 @@ async def delete_result(result_id: str):
     """Tek sonucu sil."""
     global analysis_results
     analysis_results = [r for r in analysis_results if r["id"] != result_id]
+    analysis_contexts.pop(result_id, None)
     return JSONResponse({"status": "deleted", "id": result_id})
 
 
-def _analyze_path(csv_path: Path) -> dict[str, Any] | None:
+def _analyze_path(csv_path: Path) -> tuple[dict[str, Any], AnalysisContext] | tuple[None, None]:
     """Dosya yolundan pipeline calistir (senkron)."""
     try:
         pipeline = build_pipeline(csv_path)
         ctx = AnalysisContext()
         ctx = pipeline.run(ctx)
         if ctx.has_data:
-            return ctx_to_dict(ctx, csv_path.name)
+            return ctx_to_dict(ctx, csv_path.name), ctx
     except Exception:
         pass
-    return None
+    return None, None
 
 
 @app.on_event("startup")
@@ -417,9 +418,10 @@ async def load_demo_data():
     print("[STARTUP] Demo verileri yukleniyor...")
     for f in demo_files:
         if f.exists():
-            result = _analyze_path(f)
-            if result:
+            result, ctx = _analyze_path(f)
+            if result and ctx:
                 analysis_results.append(result)
+                analysis_contexts[result["id"]] = ctx
                 print(f"  [OK] {f.name}: UTS={result['properties']['ultimate_tensile_mpa']} MPa")
     print(f"[STARTUP] {len(analysis_results)} analiz hazir.")
 

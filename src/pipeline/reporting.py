@@ -155,14 +155,16 @@ def _quality_score(ctx: AnalysisContext) -> tuple[float, str]:
 
     score = min(100, max(0, score))
 
-    if score >= 80:
-        grade = "A (Mükemmel)"
-    elif score >= 60:
-        grade = "B (Iyi)"
+    if score >= 85:
+        grade = "A+ (Mukemmel)"
+    elif score >= 70:
+        grade = "A (Iyi)"
+    elif score >= 55:
+        grade = "B (Dikkatle Kullanilabilir)"
     elif score >= 40:
-        grade = "C (Kabul Edilebilir)"
+        grade = "C (Dusuk Guvenilirlik)"
     else:
-        grade = "D (Yetersiz)"
+        grade = "D (Guvenilmez)"
 
     return score, grade
 
