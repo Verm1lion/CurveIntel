@@ -60,6 +60,25 @@ COLOR_TABLE_HEADER = colors.HexColor("#1565c0")  # Tablo baslik
 COLOR_TABLE_ALT = colors.HexColor("#e3f2fd")     # Tablo alternatif satir
 
 
+# ── Turkce karakter donusumu (Helvetica desteklemiyor) ──
+_TR_MAP = str.maketrans({
+    '\u011f': 'g', '\u011e': 'G',  # ğ Ğ
+    '\u00fc': 'u', '\u00dc': 'U',  # ü Ü
+    '\u015f': 's', '\u015e': 'S',  # ş Ş
+    '\u0131': 'i', '\u0130': 'I',  # ı İ
+    '\u00f6': 'o', '\u00d6': 'O',  # ö Ö
+    '\u00e7': 'c', '\u00c7': 'C',  # ç Ç
+    '\u2014': '--', '\u2013': '-',  # em/en dash
+    '\u2019': "'", '\u201c': '"', '\u201d': '"',
+})
+
+def _s(text: str) -> str:
+    """Sanitize text for Helvetica: replace Turkish chars with ASCII."""
+    if not isinstance(text, str):
+        return str(text)
+    return text.translate(_TR_MAP)
+
+
 def _build_styles() -> dict[str, ParagraphStyle]:
     """Ozel PDF stilleri olustur."""
     base = getSampleStyleSheet()
@@ -270,7 +289,18 @@ def generate_pdf_report(
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     report_uuid = str(_uuid.uuid4())[:12].upper()
     specimen_id = ctx.metadata.specimen_id or ctx.metadata.source_file or "---"
-    material = ctx.metadata.material_type.value if ctx.metadata.material_type else "---"
+    _MATERIAL_LABELS = {
+        "structural_steel": "Yapisal Celik (Structural Steel)",
+        "dual_phase_steel": "Cift-Fazli Celik (DP Steel)",
+        "low_carbon_steel": "Dusuk Karbonlu Celik",
+        "stainless_steel": "Paslanmaz Celik (Stainless)",
+        "aluminum": "Aluminyum",
+        "polymer": "Polimer",
+        "composite": "Kompozit",
+        "unknown": "---",
+    }
+    material_raw = ctx.metadata.material_type.value if ctx.metadata.material_type else "unknown"
+    material = _MATERIAL_LABELS.get(material_raw, material_raw)
 
     info_data = [
         ["Rapor ID", f"CI-{report_uuid}"],
@@ -396,19 +426,20 @@ def generate_pdf_report(
     if p.toughness_mj_m3 is not None:
         _add_prop("Modulus of Toughness (Ut)", f"{p.toughness_mj_m3:.2f}", "MJ/m3", tags.get("toughness", "---"))
 
-    props_table = Table(props_data, colWidths=[5 * cm, 3 * cm, 2.5 * cm, 5 * cm])
+    props_table = Table(props_data, colWidths=[4.5 * cm, 2.5 * cm, 2 * cm, 7.5 * cm])
     props_table.setStyle(TableStyle([
         # Header
         ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
         # Body
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 9),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
         ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
         ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
         # Deger kolonu bold
         ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
         # Alternatif satir renkleri
@@ -456,11 +487,12 @@ def generate_pdf_report(
     if ctx.anomalies:
         anomaly_data = [["Seviye", "Tip", "Aciklama", "Konum (strain)"]]
         for a in ctx.anomalies:
-            loc = f"{a.strain_location:.4f}" if a.strain_location else "—"
+            loc = f"{a.strain_location:.4f}" if a.strain_location else "--"
+            desc = _s(a.description[:60] + ("..." if len(a.description) > 60 else ""))
             anomaly_data.append([
                 a.severity.upper(),
-                a.anomaly_type.value,
-                a.description[:50] + ("..." if len(a.description) > 50 else ""),
+                _s(a.anomaly_type.value),
+                desc,
                 loc,
             ])
 
@@ -498,22 +530,23 @@ def generate_pdf_report(
     log_data = [["Adim", "Durum", "Sure (ms)", "Mesaj"]]
     for r in ctx.step_results:
         status_text = {"success": "OK", "warning": "UYARI", "failure": "HATA"}[r.status.value]
+        msg = _s(r.message[:60] + ("..." if len(r.message) > 60 else ""))
         log_data.append([
-            r.step_name,
+            _s(r.step_name),
             status_text,
             f"{r.duration_ms:.1f}",
-            r.message[:45] + ("..." if len(r.message) > 45 else ""),
+            msg,
         ])
 
     total_ms = sum(r.duration_ms for r in ctx.step_results)
     log_data.append(["TOPLAM", "", f"{total_ms:.1f}", f"{len(ctx.step_results)} adim"])
 
-    log_table = Table(log_data, colWidths=[4 * cm, 1.8 * cm, 2 * cm, 7.7 * cm])
+    log_table = Table(log_data, colWidths=[3.8 * cm, 1.5 * cm, 1.8 * cm, 8.4 * cm])
     log_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECONDARY),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),

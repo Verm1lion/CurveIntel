@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.models.enums import StressStrainType
+from src.models.enums import MaterialType, StressStrainType
 from src.pipeline.base import AnalysisContext, PipelineStep, StepResult
 
 
@@ -323,6 +323,22 @@ class SchemaDetector(PipelineStep):
                     ctx.metadata.width_mm = w
                 if ctx.metadata.cross_section_area_mm2 is None:
                     ctx.metadata.cross_section_area_mm2 = t * w
+
+        # Dosya adindan malzeme turu tespit et
+        if source and ctx.metadata.material_type == MaterialType.UNKNOWN:
+            fn = source.upper()
+            if re.search(r"(?:DP|DUAL.?PHASE)\s*\d{3,4}", fn):
+                ctx.metadata.material_type = MaterialType.STEEL_DP
+            elif re.search(r"(?:AL\d|ALUM|AA\d)", fn) or "ALUMINUM" in fn or "ALUMINIUM" in fn:
+                ctx.metadata.material_type = MaterialType.ALUMINUM
+            elif re.search(r"(?:SS|STAINLESS|AISI\s*3\d{2}|316L|304L?)", fn):
+                ctx.metadata.material_type = MaterialType.STEEL_STAINLESS
+            elif re.search(r"(?:FE\w|STEEL|S\d{3}|Q\d{3})", fn):
+                ctx.metadata.material_type = MaterialType.STEEL_STRUCTURAL
+            elif re.search(r"(?:CFRP|COMPOSITE|CARBON.?FIBER)", fn):
+                ctx.metadata.material_type = MaterialType.COMPOSITE
+            elif re.search(r"(?:PLA|FKM|PDMS|POLYMER|NYLON|ABS|PETG)", fn):
+                ctx.metadata.material_type = MaterialType.POLYMER
 
         # Stress-strain dogrudan bulundu mu?
         if "stress" in detected and "strain" in detected:

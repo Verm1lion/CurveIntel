@@ -272,6 +272,11 @@ async def dashboard(request: Request):
     })
 
 
+@app.get("/guide", response_class=HTMLResponse)
+async def guide_page(request: Request):
+    """Kullanim kilavuzu sayfasi."""
+    return templates.TemplateResponse("guide.html", {"request": request})
+
 @app.post("/api/analyze")
 async def analyze(file: UploadFile = File(...)):
     """CSV upload edip pipeline calistir."""

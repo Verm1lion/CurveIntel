@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html class="dark" lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CurveIntel — Guide</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "surface-container-high": "#242842",
+                    "surface-variant": "#2f334e",
+                    "tertiary-fixed": "#62ff96",
+                    "tertiary-fixed-dim": "#00e475",
+                    "background": "#080c25",
+                    "outline": "#8c909f",
+                    "outline-variant": "#424753",
+                    "primary": "#afc6ff",
+                    "tertiary": "#00e475",
+                    "surface": "#161a33",
+                    "surface-bright": "#343752",
+                    "surface-container-lowest": "#080c25",
+                    "surface-container-highest": "#2f334e",
+                    "on-surface": "#dee0ff",
+                    "on-surface-variant": "#c2c6d6",
+                    "on-background": "#dee0ff",
+                    "error": "#ffb4ab",
+                },
+                fontFamily: {
+                    body: ["Inter", "system-ui", "sans-serif"],
+                },
+            },
+        },
+    };
+</script>
+<style>
+    .glass-panel {
+        background-color: rgba(15, 23, 62, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: inset 1px 1px 0px 0px rgba(255, 255, 255, 0.05);
+    }
+    .glass-panel-light {
+        background-color: rgba(22, 26, 51, 0.6);
+        backdrop-filter: blur(12px);
+    }
+
+    /* Scroll animations */
+    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* Hero curve animation */
+    .curve-path { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: drawCurve 2.5s ease forwards 0.5s; }
+    @keyframes drawCurve { to { stroke-dashoffset: 0; } }
+    .point-pop { opacity: 0; transform: scale(0); animation: popIn 0.4s ease forwards; }
+    .point-pop-1 { animation-delay: 1.8s; }
+    .point-pop-2 { animation-delay: 2.2s; }
+    .point-pop-3 { animation-delay: 2.6s; }
+    @keyframes popIn { to { opacity: 1; transform: scale(1); } }
+
+    /* Metric cards */
+    .metric-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .metric-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(175, 198, 255, 0.08); }
+
+    /* Timeline */
+    .timeline-line { background: linear-gradient(180deg, #afc6ff 0%, #00e475 50%, #ff8a65 100%); }
+    .timeline-node { transition: all 0.4s ease; }
+    .timeline-node.active { box-shadow: 0 0 12px rgba(175, 198, 255, 0.4); }
+
+    /* FAQ accordion */
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.4s ease, padding 0.3s ease; }
+    .faq-item.open .faq-answer { max-height: 500px; }
+    .faq-toggle { transition: transform 0.3s ease; }
+    .faq-item.open .faq-toggle { transform: rotate(45deg); }
+
+    /* Grade cards */
+    .grade-card { transition: all 0.3s ease; }
+    .grade-card:hover { transform: scale(1.05); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+    ::-webkit-scrollbar-thumb { background: rgba(140, 144, 159, 0.3); border-radius: 4px; }
+
+    /* Ambient bg */
+    .hero-glow { 
+        position: absolute; width: 500px; height: 500px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(175,198,255,0.06) 0%, transparent 70%);
+        top: -100px; right: -100px; pointer-events: none;
+    }
+    .hero-glow-2 {
+        position: absolute; width: 400px; height: 400px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(0,228,117,0.04) 0%, transparent 70%);
+        bottom: -150px; left: -100px; pointer-events: none;
+    }
+
+    /* Step connector */
+    .step-connector { position: relative; }
+    .step-connector::after {
+        content: ''; position: absolute; top: 50%; right: -2rem; width: 2rem; height: 2px;
+        background: linear-gradient(90deg, rgba(175,198,255,0.3), transparent);
+    }
+</style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body antialiased min-h-screen flex flex-col pt-16">
+
+<!-- TOP NAV -->
+<nav class="bg-slate-950/85 backdrop-blur-xl shadow-[0_24px_48px_rgba(0,0,0,0.4)] fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 border-b border-outline-variant/15">
+    <div class="flex items-center gap-8">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+            <span class="text-xl font-bold tracking-tighter text-blue-100">CurveIntel</span>
+        </div>
+        <div class="hidden md:flex gap-6 items-center">
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="/">Dashboard</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Analytics</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Materials</a>
+            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Archive</a>
+            <a class="font-inter tracking-tight text-blue-400 border-b-2 border-blue-400 pb-1" href="/guide">Guide</a>
+        </div>
+    </div>
+    <div class="flex items-center gap-4 text-on-surface-variant">
+        <a href="/" class="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-primary hover:bg-primary/5 transition-colors text-sm font-medium">
+            <span class="material-symbols-outlined text-sm">arrow_back</span> Dashboard
+        </a>
+    </div>
+</nav>
+
+<main class="max-w-[1200px] mx-auto px-6 md:px-8 py-8">
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 1: HERO                                 -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="relative py-16 md:py-24 overflow-hidden">
+    <div class="hero-glow"></div>
+    <div class="hero-glow-2"></div>
+    
+    <div class="grid md:grid-cols-2 gap-12 items-center">
+        <!-- Left: Text -->
+        <div class="reveal">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="h-px w-12 bg-gradient-to-r from-primary to-transparent"></div>
+                <span class="text-xs font-semibold tracking-[0.2em] text-primary uppercase">ISO 6892-1:2019</span>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-black tracking-tight leading-[1.1] mb-6">
+                <span class="text-on-surface">Hassas </span>
+                <span class="bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent">Stress-Strain</span><br>
+                <span class="text-on-surface">Analiz Motoru</span>
+            </h1>
+            <p class="text-on-surface-variant text-lg leading-relaxed mb-8 max-w-md">
+                Mekanik test verilerinizi yükleyin. 20 adımlık pipeline ile saniyeler içinde 
+                <strong class="text-on-surface">7 mekanik özellik</strong> hesaplayın, 
+                <strong class="text-on-surface">anomalileri</strong> tespit edin ve 
+                ISO uyumlu <strong class="text-on-surface">PDF rapor</strong> alın.
+            </p>
+            <a href="/" class="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold hover:from-blue-500 hover:to-blue-400 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5">
+                Analize Başla
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+        </div>
+
+        <!-- Right: Animated Stress-Strain Curve -->
+        <div class="reveal reveal-delay-2">
+            <div class="glass-panel rounded-2xl p-6 relative">
+                <div class="text-xs text-on-surface-variant mb-3 font-medium tracking-wide">Stress-Strain Eğrisi</div>
+                <svg viewBox="0 0 400 250" class="w-full">
+                    <!-- Grid -->
+                    <defs>
+                        <pattern id="grid" width="40" height="25" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 25" fill="none" stroke="rgba(140,144,159,0.08)" stroke-width="0.5"/>
+                        </pattern>
+                    </defs>
+                    <rect width="400" height="250" fill="url(#grid)"/>
+                    
+                    <!-- Axes -->
+                    <line x1="40" y1="220" x2="380" y2="220" stroke="rgba(140,144,159,0.2)" stroke-width="1"/>
+                    <line x1="40" y1="20" x2="40" y2="220" stroke="rgba(140,144,159,0.2)" stroke-width="1"/>
+                    
+                    <!-- Axis labels -->
+                    <text x="210" y="245" fill="#8c909f" font-size="10" text-anchor="middle" font-family="Inter">Strain (mm/mm)</text>
+                    <text x="15" y="120" fill="#8c909f" font-size="10" text-anchor="middle" font-family="Inter" transform="rotate(-90, 15, 120)">Stress (MPa)</text>
+                    
+                    <!-- The curve -->
+                    <path class="curve-path" d="M 40,220 C 50,210 55,150 60,100 C 65,80 75,60 100,50 C 130,42 160,38 200,36 C 240,34 270,32 300,30 C 310,30 315,31 320,33 C 335,40 345,60 355,100 C 360,130 365,180 370,220" 
+                          fill="none" stroke="url(#curveGrad)" stroke-width="2.5" stroke-linecap="round"/>
+                    
+                    <defs>
+                        <linearGradient id="curveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#afc6ff"/>
+                            <stop offset="50%" stop-color="#7eb0ff"/>
+                            <stop offset="100%" stop-color="#ff8a65"/>
+                        </linearGradient>
+                    </defs>
+                    
+                    <!-- Elastic region indicator -->
+                    <line x1="40" y1="220" x2="65" y2="85" stroke="rgba(175,198,255,0.15)" stroke-width="1" stroke-dasharray="4,3" class="point-pop point-pop-1"/>
+                    
+                    <!-- Yield point -->
+                    <g class="point-pop point-pop-1" style="transform-origin: 100px 50px">
+                        <circle cx="100" cy="50" r="5" fill="#080c25" stroke="#62ff96" stroke-width="2"/>
+                        <text x="108" y="45" fill="#62ff96" font-size="9" font-family="Inter" font-weight="600">Rp0.2</text>
+                    </g>
+                    
+                    <!-- UTS point -->
+                    <g class="point-pop point-pop-2" style="transform-origin: 300px 30px">
+                        <circle cx="300" cy="30" r="5" fill="#080c25" stroke="#afc6ff" stroke-width="2"/>
+                        <text x="280" y="22" fill="#afc6ff" font-size="9" font-family="Inter" font-weight="600">Rm (UTS)</text>
+                    </g>
+                    
+                    <!-- Fracture point -->
+                    <g class="point-pop point-pop-3" style="transform-origin: 365px 200px">
+                        <circle cx="365" cy="200" r="4" fill="#080c25" stroke="#ff8a65" stroke-width="2"/>
+                        <text x="340" y="195" fill="#ff8a65" font-size="9" font-family="Inter" font-weight="600">Kırılma</text>
+                    </g>
+                    
+                    <!-- E modulus annotation -->
+                    <g class="point-pop point-pop-1" style="transform-origin: 52px 160px">
+                        <text x="55" y="155" fill="rgba(175,198,255,0.5)" font-size="8" font-family="Inter" font-weight="500">E = eğim</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 2: WHY CURVEINTEL                       -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-12 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Neden Var?</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Geleneksel Yöntemlerin Ötesinde</h2>
+        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">Test cihazınız veriyi üretir. CurveIntel onu anlamlı mühendislik bilgisine dönüştürür.</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+        <!-- Card 1 -->
+        <div class="glass-panel rounded-2xl p-8 metric-card reveal reveal-delay-1">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/5 flex items-center justify-center mb-5 border border-blue-500/10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5Z" stroke="#afc6ff" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#afc6ff" stroke-width="1.5" stroke-linejoin="round" opacity="0.5"/></svg>
+            </div>
+            <h3 class="text-lg font-bold mb-3">İnsan Hatasını Sıfırlar</h3>
+            <p class="text-on-surface-variant text-sm leading-relaxed">
+                Excel'de her numune için tekrarlanan E modülü eğim hesabı, %0.2 offset çizgisi, 
+                UTS noktası tespiti — hepsi otomatik. Operatörden bağımsız, tekrarlanabilir sonuçlar.
+            </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="glass-panel rounded-2xl p-8 metric-card reveal reveal-delay-2">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 flex items-center justify-center mb-5 border border-emerald-500/10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8Z" stroke="#62ff96" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="text-lg font-bold mb-3">200ms Altında Analiz</h3>
+            <p class="text-on-surface-variant text-sm leading-relaxed">
+                2000 noktalık bir veri seti 200 milisaniyenin altında işlenir. Batch modda 
+                yüzlerce test dosyası sırayla analiz edilir, sonuçlar anında karşılaştırılabilir.
+            </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="glass-panel rounded-2xl p-8 metric-card reveal reveal-delay-3">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-600/5 flex items-center justify-center mb-5 border border-violet-500/10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#c4b5fd" stroke-width="1.5"/><path d="M8 12l3 3 5-6" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="text-lg font-bold mb-3">ISO Standart Altyapısı</h3>
+            <p class="text-on-surface-variant text-sm leading-relaxed">
+                Hesaplamalar ISO 6892-1:2019'a göre yapılır. Rapor şablonu ISO/IEC 17025:2017 
+                Cl. 7.8.2 alanlarını içerir. Kalite kontrol ve ön değerlendirme için idealdir.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 3: HOW TO USE (3 STEPS)                 -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-14 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Kullanım</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Üç Adımda Sonuç</h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-8 reveal">
+        <!-- Step 1 -->
+        <div class="relative">
+            <div class="glass-panel rounded-2xl p-8 h-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-black text-sm">01</div>
+                    <div class="h-px flex-1 bg-gradient-to-r from-blue-500/20 to-transparent"></div>
+                </div>
+                <h3 class="text-lg font-bold mb-3">CSV Dosyanızı Yükleyin</h3>
+                <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                    Dashboard'da "Upload Data" butonuna tıklayın veya dosyayı pencereye sürükleyin. 
+                </p>
+                <div class="glass-panel-light rounded-lg p-4 text-xs text-on-surface-variant">
+                    <div class="font-semibold text-on-surface mb-2">Desteklenen Cihazlar</div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <span>• ZwickRoell</span>
+                        <span>• Instron</span>
+                        <span>• Shimadzu</span>
+                        <span>• MTS</span>
+                        <span>• Tinius Olsen</span>
+                        <span>• DEVOTRANS</span>
+                        <span>• Hegewald & Peschke</span>
+                        <span>• NIST / Generic</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Connector -->
+            <div class="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-outline-variant/30 to-transparent"></div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="relative">
+            <div class="glass-panel rounded-2xl p-8 h-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-sm">02</div>
+                    <div class="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent"></div>
+                </div>
+                <h3 class="text-lg font-bold mb-3">Pipeline Otomatik Çalışır</h3>
+                <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                    20 adımlı analiz pipeline'ı veriyi uçtan uca işler. Vendor tespiti, birim dönüşümü, filtreleme, 
+                    özellik hesaplama ve anomali kontrolü tamamen otomatiktir.
+                </p>
+                <div class="glass-panel-light rounded-lg p-4">
+                    <div class="flex items-center gap-3 text-xs">
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-blue-400"></div>
+                            <span class="text-on-surface-variant">Ingestion</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-violet-400"></div>
+                            <span class="text-on-surface-variant">Preprocessing</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                            <span class="text-on-surface-variant">Extraction</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-orange-400"></div>
+                            <span class="text-on-surface-variant">QA</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-outline-variant/30 to-transparent"></div>
+        </div>
+
+        <!-- Step 3 -->
+        <div>
+            <div class="glass-panel rounded-2xl p-8 h-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 font-black text-sm">03</div>
+                    <div class="h-px flex-1 bg-gradient-to-r from-violet-500/20 to-transparent"></div>
+                </div>
+                <h3 class="text-lg font-bold mb-3">Sonuçları İnceleyin</h3>
+                <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                    Dashboard'da mekanik özellikleri, anomali uyarılarını ve kalite skorunu görün. 
+                    Her dosya için ISO uyumlu PDF rapor indirin.
+                </p>
+                <div class="glass-panel-light rounded-lg p-4 text-xs">
+                    <div class="font-semibold text-on-surface mb-2">PDF Rapor İçeriği</div>
+                    <div class="text-on-surface-variant space-y-1">
+                        <div>• Mekanik özellikler tablosu + ISO method tag</div>
+                        <div>• Stress-strain grafiği (Yield, UTS, Necking)</div>
+                        <div>• Anomali raporu + Pipeline logları</div>
+                        <div>• İmza alanı + Yasal uyarı (TR/EN)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 4: METRICS DICTIONARY                   -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-14 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Referans</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Metrik Sözlüğü</h2>
+        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">Dashboard'da gördüğünüz her değerin ne anlama geldiği, nasıl hesaplandığı ve referans aralıkları.</p>
+    </div>
+
+    <div class="space-y-4">
+        <!-- E Modulus -->
+        <div class="glass-panel rounded-2xl overflow-hidden reveal">
+            <div class="grid md:grid-cols-[220px_1fr] items-stretch">
+                <div class="bg-blue-500/5 p-6 flex flex-col items-center justify-center border-r border-outline-variant/10">
+                    <svg viewBox="0 0 100 80" class="w-24 h-16 mb-2">
+                        <line x1="10" y1="70" x2="90" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <line x1="10" y1="10" x2="10" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <line x1="10" y1="70" x2="40" y2="20" stroke="#afc6ff" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M40,20 Q55,15 70,14 Q80,14 85,16 Q90,20 92,30" stroke="#afc6ff" stroke-width="1.5" fill="none" opacity="0.3"/>
+                        <line x1="10" y1="70" x2="50" y2="10" stroke="#afc6ff" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+                    </svg>
+                    <div class="text-2xl font-black text-blue-400">E</div>
+                    <div class="text-[10px] text-on-surface-variant mt-1">Elastik Modül</div>
+                </div>
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-3">
+                        <h3 class="text-lg font-bold">Elastik Modül (Young's Modulus)</h3>
+                        <span class="text-xs text-on-surface-variant bg-surface-variant/50 px-2 py-1 rounded">GPa</span>
+                    </div>
+                    <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                        Malzemenin <strong class="text-on-surface">sertliğini</strong> ölçer. Stress-strain eğrisinin başlangıç doğrusal bölgesinin eğimidir (σ/ε). 
+                        Değer ne kadar yüksekse, malzeme o kadar az deforme olur.
+                    </p>
+                    <div class="flex flex-wrap gap-3 text-xs">
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">Çelik:</span> <strong class="text-on-surface">~200 GPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">Alüminyum:</span> <strong class="text-on-surface">~70 GPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">Titanyum:</span> <strong class="text-on-surface">~110 GPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg text-on-surface-variant">ISO 6892-1 Annex G</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yield -->
+        <div class="glass-panel rounded-2xl overflow-hidden reveal">
+            <div class="grid md:grid-cols-[220px_1fr] items-stretch">
+                <div class="bg-emerald-500/5 p-6 flex flex-col items-center justify-center border-r border-outline-variant/10">
+                    <svg viewBox="0 0 100 80" class="w-24 h-16 mb-2">
+                        <line x1="10" y1="70" x2="90" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <line x1="10" y1="10" x2="10" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <path d="M10,70 L35,25 Q45,18 60,16 L85,14" stroke="#afc6ff" stroke-width="1.5" fill="none" opacity="0.3"/>
+                        <!-- 0.2% offset line -->
+                        <line x1="20" y1="70" x2="50" y2="20" stroke="#62ff96" stroke-width="1" stroke-dasharray="3,2"/>
+                        <circle cx="40" cy="25" r="4" fill="#080c25" stroke="#62ff96" stroke-width="1.5"/>
+                    </svg>
+                    <div class="text-2xl font-black text-emerald-400">Rp0.2</div>
+                    <div class="text-[10px] text-on-surface-variant mt-1">Akma Dayanımı</div>
+                </div>
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-3">
+                        <h3 class="text-lg font-bold">Akma Dayanımı (Yield Strength)</h3>
+                        <span class="text-xs text-on-surface-variant bg-surface-variant/50 px-2 py-1 rounded">MPa</span>
+                    </div>
+                    <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                        Malzemenin <strong class="text-on-surface">kalıcı deformasyona</strong> başladığı stres seviyesi. 
+                        %0.2 offset yöntemiyle hesaplanır: strain ekseninde 0.002 kaydırılmış E doğrusunun eğri ile kesişim noktası. 
+                        Bazı çelikler <strong class="text-on-surface">süreksiz akma</strong> (ReH/ReL) gösterir.
+                    </p>
+                    <div class="flex flex-wrap gap-3 text-xs">
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">DP980:</span> <strong class="text-on-surface">~660 MPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">Al 6xxx:</span> <strong class="text-on-surface">~280 MPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg text-on-surface-variant">ISO 6892-1 Annex A.3.2</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UTS -->
+        <div class="glass-panel rounded-2xl overflow-hidden reveal">
+            <div class="grid md:grid-cols-[220px_1fr] items-stretch">
+                <div class="bg-blue-500/5 p-6 flex flex-col items-center justify-center border-r border-outline-variant/10">
+                    <svg viewBox="0 0 100 80" class="w-24 h-16 mb-2">
+                        <line x1="10" y1="70" x2="90" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <line x1="10" y1="10" x2="10" y2="70" stroke="rgba(140,144,159,0.15)" stroke-width="0.5"/>
+                        <path d="M10,70 L30,30 Q45,15 65,12 Q75,12 80,18 Q85,30 88,50" stroke="#afc6ff" stroke-width="1.5" fill="none" opacity="0.3"/>
+                        <circle cx="65" cy="12" r="4" fill="#080c25" stroke="#afc6ff" stroke-width="1.5"/>
+                        <line x1="10" y1="12" x2="65" y2="12" stroke="#afc6ff" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.3"/>
+                    </svg>
+                    <div class="text-2xl font-black text-blue-400">Rm</div>
+                    <div class="text-[10px] text-on-surface-variant mt-1">Çekme Dayanımı</div>
+                </div>
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-3">
+                        <h3 class="text-lg font-bold">Çekme Dayanımı (UTS)</h3>
+                        <span class="text-xs text-on-surface-variant bg-surface-variant/50 px-2 py-1 rounded">MPa</span>
+                    </div>
+                    <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
+                        Stress-strain eğrisindeki <strong class="text-on-surface">maksimum stres değeri</strong>. Malzemenin taşıyabileceği en yüksek 
+                        mühendislik gerilmesi. Bu noktadan sonra boyun verme (necking) başlar ve lokal deformasyon hakimdir.
+                    </p>
+                    <div class="flex flex-wrap gap-3 text-xs">
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">DP980:</span> <strong class="text-on-surface">~1000 MPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg"><span class="text-on-surface-variant">DP1180:</span> <strong class="text-on-surface">~1200 MPa</strong></div>
+                        <div class="bg-surface-variant/30 px-3 py-1.5 rounded-lg text-on-surface-variant">ISO 6892-1 §3.8</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Elongation & Others -->
+        <div class="grid md:grid-cols-3 gap-4 reveal">
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="text-2xl font-black text-orange-400 mb-1">At</div>
+                <div class="text-xs text-on-surface-variant mb-3">Toplam Uzama (%)</div>
+                <p class="text-on-surface-variant text-xs leading-relaxed">
+                    Kırılmaya kadar toplam deformasyon. Malzemenin <strong class="text-on-surface">sünekliğinin</strong> göstergesi. 
+                    ISO 6892-1 Annex A.3.6.1 uyarınca kuvvet düşüşü ile tespit edilir.
+                </p>
+            </div>
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="text-2xl font-black text-violet-400 mb-1">n</div>
+                <div class="text-xs text-on-surface-variant mb-3">Pekleşme Üssü</div>
+                <p class="text-on-surface-variant text-xs leading-relaxed">
+                    Hollomon denklemi σ = K·εⁿ'deki üs değeri. Yüksek <em>n</em> = iyi şekillendirilebilirlik. 
+                    ISO 10275 standardına göre hesaplanır.
+                </p>
+            </div>
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="text-2xl font-black text-pink-400 mb-1">Ut</div>
+                <div class="text-xs text-on-surface-variant mb-3">Tokluk (MJ/m³)</div>
+                <p class="text-on-surface-variant text-xs leading-relaxed">
+                    Eğri altındaki alan — malzemenin kırılmaya kadar <strong class="text-on-surface">absorbe ettiği enerji</strong>. 
+                    Trapez integrasyon ile hesaplanır.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 5: QUALITY SCORE                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-14 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Güvenilirlik</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Kalite Skoru Nasıl Hesaplanır?</h2>
+        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">Her analiz 4 bileşenden oluşan bir güvenilirlik skoru alır.</p>
+    </div>
+
+    <!-- Score components -->
+    <div class="grid md:grid-cols-4 gap-4 mb-10 reveal">
+        <div class="glass-panel rounded-2xl p-6 text-center metric-card">
+            <div class="text-3xl font-black text-blue-400 mb-1">40</div>
+            <div class="text-xs text-on-surface-variant mb-3">puan</div>
+            <div class="font-semibold text-sm mb-2">Pipeline Başarısı</div>
+            <p class="text-on-surface-variant text-xs">Kaç adım başarıyla tamamlandı? Uyarı veya hata varsa puan düşer.</p>
+        </div>
+        <div class="glass-panel rounded-2xl p-6 text-center metric-card">
+            <div class="text-3xl font-black text-emerald-400 mb-1">20</div>
+            <div class="text-xs text-on-surface-variant mb-3">puan</div>
+            <div class="font-semibold text-sm mb-2">Sinyal Kalitesi</div>
+            <p class="text-on-surface-variant text-xs">SNR (sinyal/gürültü oranı) yüksekse veri güvenilirdir. ≥40 dB = tam puan.</p>
+        </div>
+        <div class="glass-panel rounded-2xl p-6 text-center metric-card">
+            <div class="text-3xl font-black text-orange-400 mb-1">20</div>
+            <div class="text-xs text-on-surface-variant mb-3">puan</div>
+            <div class="font-semibold text-sm mb-2">Anomali Durumu</div>
+            <p class="text-on-surface-variant text-xs">Tespit edilen uyarı ve kritik anomali sayısına göre ceza uygulanır.</p>
+        </div>
+        <div class="glass-panel rounded-2xl p-6 text-center metric-card">
+            <div class="text-3xl font-black text-violet-400 mb-1">20</div>
+            <div class="text-xs text-on-surface-variant mb-3">puan</div>
+            <div class="font-semibold text-sm mb-2">Fiziksel Tutarlılık</div>
+            <p class="text-on-surface-variant text-xs">Yield > UTS veya E makul aralık dışındaysa fiziksel olarak tutarsızdır.</p>
+        </div>
+    </div>
+
+    <!-- Grade cards -->
+    <div class="flex flex-wrap justify-center gap-3 reveal">
+        <div class="grade-card px-6 py-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-center">
+            <div class="text-xl font-black text-emerald-400">A+</div>
+            <div class="text-xs text-emerald-400/70 mt-1">≥85 — Mükemmel</div>
+        </div>
+        <div class="grade-card px-6 py-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-center">
+            <div class="text-xl font-black text-blue-400">A</div>
+            <div class="text-xs text-blue-400/70 mt-1">≥70 — İyi</div>
+        </div>
+        <div class="grade-card px-6 py-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-center">
+            <div class="text-xl font-black text-yellow-400">B</div>
+            <div class="text-xs text-yellow-400/70 mt-1">≥55 — Dikkatli Kullan</div>
+        </div>
+        <div class="grade-card px-6 py-4 rounded-xl border border-orange-500/20 bg-orange-500/5 text-center">
+            <div class="text-xl font-black text-orange-400">C</div>
+            <div class="text-xs text-orange-400/70 mt-1">≥40 — Düşük Güven</div>
+        </div>
+        <div class="grade-card px-6 py-4 rounded-xl border border-red-500/20 bg-red-500/5 text-center">
+            <div class="text-xl font-black text-red-400">D</div>
+            <div class="text-xs text-red-400/70 mt-1">&lt;40 — Güvenilmez</div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 6: PIPELINE TIMELINE                    -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-14 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Teknik</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Pipeline: Veriye Ne Olur?</h2>
+        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">CSV dosyanız bu 20 adımdan geçer. Her adım veriyi bir sonraki için hazırlar.</p>
+    </div>
+
+    <div class="relative max-w-2xl mx-auto">
+        <!-- Vertical line -->
+        <div class="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500/30 via-emerald-500/30 to-orange-500/30 rounded-full"></div>
+
+        <!-- INGESTION GROUP -->
+        <div class="mb-2 reveal">
+            <div class="flex items-center gap-3 ml-2 mb-4">
+                <div class="w-2.5 h-2.5 rounded-full bg-blue-400 ring-4 ring-blue-400/10"></div>
+                <span class="text-xs font-bold tracking-[0.15em] text-blue-400 uppercase">Veri Okuma</span>
+            </div>
+        </div>
+        
+        <div class="ml-14 space-y-2 mb-8">
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-blue-300 font-mono w-40 shrink-0">DataLoader</code>
+                <span class="text-xs text-on-surface-variant">CSV dosyasını okur, encoding'i otomatik tespit eder (UTF-8, CP1252, Shift-JIS...)</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-blue-300 font-mono w-40 shrink-0">SchemaDetector</code>
+                <span class="text-xs text-on-surface-variant">Kolon isimlerini analiz eder, test cihazı markasını ve veri şemasını belirler</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-blue-300 font-mono w-40 shrink-0">UnitConverter</code>
+                <span class="text-xs text-on-surface-variant">kN → MPa, mm → strain gibi birim dönüşümlerini uygular</span>
+            </div>
+        </div>
+
+        <!-- PREPROCESSING GROUP -->
+        <div class="mb-2 reveal">
+            <div class="flex items-center gap-3 ml-2 mb-4">
+                <div class="w-2.5 h-2.5 rounded-full bg-violet-400 ring-4 ring-violet-400/10"></div>
+                <span class="text-xs font-bold tracking-[0.15em] text-violet-400 uppercase">Ön İşleme</span>
+            </div>
+        </div>
+
+        <div class="ml-14 space-y-2 mb-8">
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">SpikeFilter</code>
+                <span class="text-xs text-on-surface-variant">Ölçüm spike'larını median filtre ile temizler</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">MonotonicityChecker</code>
+                <span class="text-xs text-on-surface-variant">Siklik/ratcheting veriyi tespit eder — çekme testi değilse uyarır</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">ToeCompensation</code>
+                <span class="text-xs text-on-surface-variant">Eğrinin baş bölgesindeki yerleşme etkisini düzeltir</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">Resampler</code>
+                <span class="text-xs text-on-surface-variant">Veriyi 2000 eşit aralıklı noktaya yeniden örnekler</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">SavitzkyGolayFilter</code>
+                <span class="text-xs text-on-surface-variant">21 noktalık pencere ile gürültüyü azaltır, eğri şeklini korur</span>
+            </div>
+        </div>
+
+        <!-- EXTRACTION GROUP -->
+        <div class="mb-2 reveal">
+            <div class="flex items-center gap-3 ml-2 mb-4">
+                <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-4 ring-emerald-400/10"></div>
+                <span class="text-xs font-bold tracking-[0.15em] text-emerald-400 uppercase">Özellik Çıkarımı</span>
+            </div>
+        </div>
+
+        <div class="ml-14 space-y-2 mb-8">
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ElasticModulus</code>
+                <span class="text-xs text-on-surface-variant">E modülünü hesaplar (OLS regresyon, Annex G)</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">YieldDetector</code>
+                <span class="text-xs text-on-surface-variant">%0.2 offset veya ReH/ReL süreksiz akma tespiti</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">UTSDetector</code>
+                <span class="text-xs text-on-surface-variant">Çekme dayanımı (max stress noktası)</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ElongationDetector</code>
+                <span class="text-xs text-on-surface-variant">Toplam ve uniform uzama hesabı</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">Hardening + Tokluk</code>
+                <span class="text-xs text-on-surface-variant">Hollomon n-K pekleşme üssü + trapez entegrasyonla tokluk</span>
+            </div>
+        </div>
+
+        <!-- QUALITY GROUP -->
+        <div class="mb-2 reveal">
+            <div class="flex items-center gap-3 ml-2 mb-4">
+                <div class="w-2.5 h-2.5 rounded-full bg-orange-400 ring-4 ring-orange-400/10"></div>
+                <span class="text-xs font-bold tracking-[0.15em] text-orange-400 uppercase">Kalite Kontrol</span>
+            </div>
+        </div>
+
+        <div class="ml-14 space-y-2 mb-4">
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">GripSlippage</code>
+                <span class="text-xs text-on-surface-variant">Kavrama kayması anomalisini tespit eder</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">NoiseAnalyzer</code>
+                <span class="text-xs text-on-surface-variant">SNR (sinyal/gürültü oranı) hesaplar</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">PropertyValidator</code>
+                <span class="text-xs text-on-surface-variant">Hesaplanan değerlerin fiziksel tutarlılığını doğrular</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SECTION 7: FAQ                                  -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="py-16">
+    <div class="text-center mb-14 reveal">
+        <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">SSS</span>
+        <h2 class="text-3xl font-extrabold tracking-tight mt-3">Sık Sorulan Sorular</h2>
+    </div>
+
+    <div class="max-w-2xl mx-auto space-y-3 reveal">
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">Hangi test cihazlarını ve dosya formatlarını destekliyor?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    ZwickRoell testXpert, Instron Bluehill, Shimadzu Trapezium X, MTS TestSuite, 
+                    Tinius Olsen Horizon, DEVOTRANS CKS, Hegewald & Peschke ve NIST Numisheet formatları doğrudan desteklenir. 
+                    Bunlar dışındaki CSV dosyaları için otomatik şema algılama devreye girer. 
+                    Encoding (UTF-8, CP1252, Shift-JIS) ve ayırıcı (virgül, noktalı virgül, tab) otomatik tespit edilir.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">Siklik veri yükledim, neden sonuç çıkmıyor?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    CurveIntel monotonic çekme testleri için tasarlanmıştır. Siklik yükleme, ratcheting veya yorulma 
+                    test verileri otomatik olarak tespit edilir (strain reversal analizi) ve uyarı gösterilir. 
+                    Bu tür verilerde E modülü, UTS gibi değerlerin hesaplanması fiziksel olarak anlamsızdır, 
+                    bu yüzden bilinçli olarak atlanır.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">Kalite skorum neden düşük?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    Skor 4 bileşenden oluşur: pipeline başarısı (40p), sinyal kalitesi/SNR (20p), 
+                    anomali sayısı (20p) ve fiziksel tutarlılık (20p). Yaygın düşüklük nedenleri: 
+                    yüksek gürültü seviyesi, veri kesilmesi (truncation), sensor saturasyonu veya 
+                    tutarsız mekanik özellikler (örn. yield > UTS). Detaylar için PDF raporunuzdaki 
+                    anomali bölümüne bakın.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">PDF rapor resmi olarak kullanılabilir mi?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    Rapor şablonu ISO/IEC 17025:2017 Cl. 7.8.2 alanlarını içerecek şekilde tasarlanmıştır, 
+                    ancak bu yazılım hiçbir akreditasyon kuruluşu tarafından sertifikalandırılmamıştır. 
+                    İç kalite kontrol, ön değerlendirme ve mühendislik kararları için uygundur. 
+                    Yasal bağlayıcılığı olan akredite rapor ancak ISO/IEC 17025 kapsamında akredite 
+                    bir laboratuvar tarafından düzenlenebilir.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">Verilerim güvende mi?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    Evet. Tüm veriler yerel makinenizde işlenir, hiçbir veri harici sunuculara gönderilmez. 
+                    Dosyalar yalnızca analiz süresi boyunca bellekte tutulur. CurveIntel tamamen offline çalışabilir.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item glass-panel rounded-xl overflow-hidden">
+            <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
+                <span class="font-semibold text-sm pr-4">Batch modda kaç dosya yükleyebilirim?</span>
+                <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
+            </button>
+            <div class="faq-answer px-6">
+                <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
+                    Teknik bir sınır yoktur. Dosyalar sırasıyla işlenir ve her birinin sonucu Batch Results 
+                    tablosunda listelenir. Sonuçları tek tek inceleyebilir, PDF indirebilir veya tek tıkla 
+                    tümünü temizleyebilirsiniz. Session boyunca son 10 analiz dashboard'da tutulur.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- FOOTER                                          -->
+<!-- ═══════════════════════════════════════════════ -->
+<footer class="py-12 text-center reveal">
+    <div class="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-outline-variant/30 to-transparent mb-8"></div>
+    <a href="/" class="inline-flex items-center gap-3 px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold hover:from-blue-500 hover:to-blue-400 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 mb-6">
+        Dashboard'a Dön
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <p class="text-xs text-on-surface-variant/50 max-w-lg mx-auto mt-6 leading-relaxed">
+        CurveIntel v1.1.0 — Hesaplamalar ISO 6892-1:2019 standardına göre yapılır. 
+        Bu yazılım herhangi bir akreditasyon kuruluşu tarafından sertifikalandırılmamıştır.
+    </p>
+</footer>
+
+</main>
+
+<!-- Scroll reveal script -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+});
+</script>
+
+</body>
+</html>

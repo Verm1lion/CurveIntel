@@ -34,6 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Approved legal disclaimer text (TR/EN)
 - Report UUID traceability (CI-XXXXXX format)
 
+## [1.2.0] - 2026-04-19
+
+### Added
+- **Guide Page:** Kapsamli, animasyonlu rehber sayfasi (Hero, Neden CurveIntel, Nasil Kullanilir, Metrik Sozlugu, Kalite Skor Tablosu, Pipeline Timeline, SSS).
+- **Dashboard Navbar:** Guide sayfasina gecis linki eklendi.
+- **Material Detection:** Dosya isimlendirme formatlarindan malzeme turu (DP Celik, Aluminyum, Yapisal Celik vb.) Regex ile otomatik tespit ve PDF'e yanismasi eklendi.
+
+### Fixed
+- **PDF ISO Method:** Mekanik ozellikler tablosundaki "ISO Yontem / Method" sutununda yasanan metin tasmasi duzeltildi.
+- **PDF Pipeline Log:** Pipeline loglarinda ve anomali tablosunda yasanan Turkce karakter bozulmasi Helvetica uyumu icin sanitize isleminden gecirildi.
+
 ## [1.1.0] - 2026-04-19
 
 ### Added

@@ -115,6 +115,7 @@ CSV Dosyasi
 | Endpoint | Method | Aciklama |
 |----------|--------|----------|
 | `/` | GET | Dashboard (HTML) |
+| `/guide` | GET | Kullanim Kilavuzu (HTML) |
 | `/api/health` | GET | Health check |
 | `/api/analyze` | POST | CSV upload + analiz |
 | `/api/results` | GET | Tum sonuclar (JSON) |
@@ -151,6 +152,7 @@ curveintel/
     app.py                  # FastAPI backend
     templates/
       dashboard.html        # Ana dashboard
+      guide.html            # Animasyonlu kullanim kilavuzu
     static/                 # CSS/JS
   tests/
     diagnostic_all_csv.py   # 472 dosya audit script
