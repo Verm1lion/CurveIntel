@@ -5,6 +5,27 @@ All notable changes to CurveIntel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-04-22
+
+### Changed
+- **Open Source Release:** Project relicensed from Proprietary to MIT License
+- **README:** Complete rewrite in English with badges, pipeline diagram, validation results
+- **pyproject.toml:** Updated to v2.0.0 with proper classifiers, URLs, and MIT license
+
+### Added
+- **LICENSE** — MIT License
+- **CONTRIBUTING.md** — Development setup, code style, PR process, vendor integration guide
+- **CODE_OF_CONDUCT.md** — Contributor Covenant v2.1
+- **SECURITY.md** — Vulnerability reporting policy
+- **GitHub Templates** — Bug report, feature request, vendor support, PR template
+- **examples/** — Sample CSV data directory
+
+### Removed
+- Debug scripts (`debug_score.py`, `debug_worst.py`, `diag_summary.py`)
+- Internal planning documents (`docs/PROJE_PLANI.md`)
+- Generated reports and uploads artifacts
+- All `__pycache__/` directories
+
 ## [1.0.0] - 2026-04-18
 
 ### Added

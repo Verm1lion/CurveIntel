@@ -1,2 +1,0 @@
-status,dir,file,n_points,E_gpa,yield_mpa,uts_mpa,elongation_pct,score,grade,duration_ms,fail_reason,missing_props,warnings,errors,size_kb,rel_path
-NO_DATA,nist_numisheet,analyze-NS-rawdata-attributes.csv,0,,,,,,,12.7,Pipeline ran but no stress-strain data extracted,,,,1.9,nist_numisheet\analyze-NS-rawdata-attributes.csv

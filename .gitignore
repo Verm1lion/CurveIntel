@@ -34,6 +34,15 @@ uploads/*.csv
 uploads/*.tmp
 uploads/*.pdf
 
+# Database
+*.db
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.production
+
 # Test artifacts
 tests/*.png
 

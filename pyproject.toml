@@ -4,14 +4,36 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "curveintel"
-version = "1.0.0"
+version = "2.0.0"
 description = "ISO 6892-1:2019 compliant tensile test analysis engine with multi-vendor CSV support"
+readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "Proprietary"}
+license = {text = "MIT"}
 authors = [
-    {name = "CurveIntel Team"},
+    {name = "Verm1lion"},
 ]
-keywords = ["tensile-test", "ISO-6892", "stress-strain", "mechanical-testing", "quality-control"]
+keywords = [
+    "tensile-test", "ISO-6892", "stress-strain", "mechanical-testing",
+    "quality-control", "materials-science", "RANSAC", "vendor-agnostic",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Homepage = "https://github.com/Verm1lion/CurveIntel"
+Repository = "https://github.com/Verm1lion/CurveIntel"
+Issues = "https://github.com/Verm1lion/CurveIntel/issues"
+Documentation = "https://github.com/Verm1lion/CurveIntel/tree/main/docs"
 
 dependencies = [
     "numpy>=1.24",

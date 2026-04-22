@@ -393,8 +393,10 @@ def generate_pdf_report(
         ["Ozellik / Property", "Deger / Value", "Birim / Unit", "ISO Yontem / Method"],
     ]
 
+    wrap_style = ParagraphStyle("Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black)
+
     def _add_prop(name, value, unit, method):
-        props_data.append([name, value, unit, method])
+        props_data.append([name, value, unit, Paragraph(method, wrap_style)])
 
     if p.elastic_modulus_gpa is not None:
         _add_prop("Elastik Modul (E)", f"{p.elastic_modulus_gpa:.1f}", "GPa",
@@ -486,13 +488,14 @@ def generate_pdf_report(
 
     if ctx.anomalies:
         anomaly_data = [["Seviye", "Tip", "Aciklama", "Konum (strain)"]]
+        wrap_style = ParagraphStyle("Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black)
         for a in ctx.anomalies:
             loc = f"{a.strain_location:.4f}" if a.strain_location else "--"
-            desc = _s(a.description[:60] + ("..." if len(a.description) > 60 else ""))
+            desc = _s(a.description[:150] + ("..." if len(a.description) > 150 else ""))
             anomaly_data.append([
                 a.severity.upper(),
                 _s(a.anomaly_type.value),
-                desc,
+                Paragraph(desc, wrap_style),
                 loc,
             ])
 
@@ -528,14 +531,15 @@ def generate_pdf_report(
     elements.append(Paragraph("Pipeline Islem Loglari", styles["heading"]))
 
     log_data = [["Adim", "Durum", "Sure (ms)", "Mesaj"]]
+    wrap_style_small = ParagraphStyle("WrapSmall", fontSize=7, leading=9, fontName="Helvetica", textColor=colors.black)
     for r in ctx.step_results:
         status_text = {"success": "OK", "warning": "UYARI", "failure": "HATA"}[r.status.value]
-        msg = _s(r.message[:60] + ("..." if len(r.message) > 60 else ""))
+        msg = _s(r.message[:150] + ("..." if len(r.message) > 150 else ""))
         log_data.append([
             _s(r.step_name),
             status_text,
             f"{r.duration_ms:.1f}",
-            msg,
+            Paragraph(msg, wrap_style_small),
         ])
 
     total_ms = sum(r.duration_ms for r in ctx.step_results)

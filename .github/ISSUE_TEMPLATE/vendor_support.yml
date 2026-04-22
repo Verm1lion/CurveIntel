@@ -1,0 +1,58 @@
+name: Vendor Support Request
+description: Request support for a new test machine brand/model
+title: "[VENDOR] "
+labels: ["vendor-support"]
+body:
+  - type: input
+    id: brand
+    attributes:
+      label: Machine Brand
+      placeholder: "e.g., Besmak, Utest, Cometech"
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Machine Model
+      placeholder: "e.g., BSMT-500, UTM-4000"
+
+  - type: input
+    id: software
+    attributes:
+      label: Software Used
+      placeholder: "e.g., TestLab Pro v3.2"
+
+  - type: textarea
+    id: csv_sample
+    attributes:
+      label: CSV Sample (first 15 rows)
+      description: Paste the first 15 rows including ALL header rows (anonymize values if needed)
+      render: csv
+    validations:
+      required: true
+
+  - type: textarea
+    id: columns
+    attributes:
+      label: Column Descriptions
+      description: Which columns contain Force, Displacement, Stress, Strain, Time?
+      placeholder: |
+        Column A: Time (s)
+        Column B: Force (kN)
+        Column C: Displacement (mm)
+        ...
+    validations:
+      required: true
+
+  - type: input
+    id: encoding
+    attributes:
+      label: File Encoding
+      placeholder: "UTF-8, CP1252, Shift-JIS, etc. (if known)"
+
+  - type: input
+    id: separator
+    attributes:
+      label: Column Separator
+      placeholder: "comma, semicolon, tab"

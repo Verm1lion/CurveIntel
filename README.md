@@ -1,176 +1,192 @@
-# CurveIntel
+# 🔬 CurveIntel
 
-**ISO 6892-1:2019 uyumlu cekme testi analiz motoru.**
+> **ISO 6892-1:2019 compliant tensile test analysis engine.**
+> Vendor-agnostic · Deterministic · Open Source
 
-CurveIntel, mekanik test cihazlarindan alinan stress-strain CSV verilerini otomatik olarak analiz eder,
-mekanik ozellikleri (E, Rp0.2, Rm, At, n) hesaplar ve ISO 17025 Cl. 7.8.2.1 sartlarini karsilayan
-raporlar uretir.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](Dockerfile)
 
 ---
 
-## Ozellikler
+## ✨ What is CurveIntel?
 
-- **7 mekanik ozellik**: E, Rp0.2/ReH/ReL, Rm, At, Ag, n, Ut
-- **5 anomali tespiti**: Grip kaymasi, sensor saturasyonu, gurultu, egri butunlugu, ozellik dogrulama
-- **Siklik veri tespiti**: MonotonicityChecker ile cyclic/ratcheting dosyalar otomatik tespit edilir
-- **Batch QC**: Dixon Q10 + Grubbs outlier, CoV, 95% CI, SPC (Nelson 8 kurali)
-- **8 vendor destegi**: ZwickRoell, Instron, Shimadzu, MTS, Tinius Olsen, DEVOTRANS, Hegewald, NIST
-- **Coklu dil**: DE, EN, JP, TR, FR, ES kolon isimleri
-- **ISO 17025 uyumlu raporlama**: PDF (grafik + anomali + pipeline log + imza alani) + JSON + CSV export
-- **5 kademeli kalite skoru**: A+ (Mukemmel) → D (Guvenilmez)
+CurveIntel is an **open-source post-test analysis engine** for universal testing machines (UTMs). It reads raw stress-strain CSV data from **any vendor**, computes mechanical properties per ISO 6892-1:2019, and generates ISO 17025-aligned PDF reports — all without requiring the original test machine software.
 
-## Hizli Baslangic
+**The problem it solves:** Laboratories with mixed-vendor machine fleets (Instron + ZwickRoell + Shimadzu + ...) struggle with incompatible software ecosystems, manual Excel calculations, and audit trail gaps. CurveIntel normalizes all data into one deterministic, reproducible pipeline.
 
-### 1. Kurulum (pip)
+### Key Features
+
+- 🧮 **7 Mechanical Properties** — E-modulus (OLS/RANSAC), Rp0.2, ReH/ReL, Rm, At%, Ag%, strain hardening exponent (n)
+- 🔍 **5-Layer Anomaly Detection** — Grip slippage, sensor saturation, noise (SNR), curve integrity, property validation
+- 🏭 **8 Vendor Profiles** — ZwickRoell, Instron, Shimadzu, MTS, Tinius Olsen, DEVOTRANS, Hegewald & Peschke, NIST
+- 📊 **Batch QC & SPC** — Dixon Q10, Grubbs outlier tests, CoV, 95% CI, X-bar/R charts with Nelson 8 rules
+- 📄 **ISO 17025 Reports** — PDF with graphs, anomaly tables, pipeline logs, signature placeholders, UUID traceability
+- 🌐 **Web Dashboard** — FastAPI-powered UI with drag-and-drop upload
+- 🐳 **Docker Ready** — Single command deployment
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: pip
 
 ```bash
 pip install numpy scipy pandas scikit-learn matplotlib fastapi uvicorn jinja2 python-multipart reportlab
+
+# Clone and run
+git clone https://github.com/Verm1lion/CurveIntel.git
+cd CurveIntel
+uvicorn web.app:app --reload
+# Open http://localhost:8000
 ```
 
-### 2. Tek Dosya Analizi
+### Option 2: Docker
+
+```bash
+git clone https://github.com/Verm1lion/CurveIntel.git
+cd CurveIntel
+docker compose up -d
+# Open http://localhost:8000
+```
+
+### Option 3: Python API
 
 ```python
 from pathlib import Path
 from batch_analyze import build_pipeline, analyze_single
 
-csv = Path("numune.csv")
-ctx = analyze_single(csv, Path("reports/"))
-print(f"Rm = {ctx.properties.ultimate_tensile_mpa:.1f} MPa")
+csv_file = Path("your_test_data.csv")
+ctx = analyze_single(csv_file, Path("reports/"))
+
+print(f"E-modulus:       {ctx.properties.elastic_modulus_gpa:.1f} GPa")
+print(f"Yield (Rp0.2):   {ctx.properties.yield_strength_mpa:.1f} MPa")
+print(f"UTS (Rm):        {ctx.properties.ultimate_tensile_mpa:.1f} MPa")
+print(f"Elongation (At): {ctx.properties.total_elongation_pct:.1f} %")
+print(f"Quality:         {ctx.properties.quality_grade}")
 ```
 
-### 3. Web Dashboard
+---
 
-```bash
-cd curveintel
-uvicorn web.app:app --reload
-# http://localhost:8000
-```
+## 🔧 Pipeline Architecture
 
-### 4. Batch Analiz
-
-```bash
-python batch_analyze.py /path/to/csv/dizini
-```
-
-### 5. Docker
-
-```bash
-docker compose up -d
-# http://localhost:8000
-```
-
-## Pipeline Adimlari
+CurveIntel processes each CSV through a **19-step deterministic pipeline**:
 
 ```
-CSV Dosyasi
-  → DataLoader (encoding/separator auto-detect)
-  → SchemaDetector (vendor profil eslesme)
-  → UnitConverter (kN→MPa, mm→strain)
-  → SpikeFilter (median filtre)
-  → MonotonicityChecker (siklik veri tespiti)
-  → ToeCompensation (bas bolge duzeltme)
-  → Resampler (2000 nokta)
-  → SavitzkyGolayFilter (gurultu azaltma)
-  → ElasticModulusDetector (OLS / Chord)
-  → YieldDetector (0.2% offset / ReH-ReL)
-  → UTSDetector (max stress)
-  → ElongationDetector (At / Ag)
-  → NeckingDetector (Considere kriteri)
-  → StrainHardeningFitter (Hollomon n-K)
-  → ToughnessCalculator (trapez integral)
-  → GripSlippageDetector
-  → SensorSaturationDetector
-  → NoiseAnalyzer (SNR)
-  → CurveIntegrityChecker (truncation)
-  → PropertyValidator (fiziksel tutarlilik)
-→ PDF Rapor (ISO 17025 sablonu)
+CSV File
+  ├─ Ingestion ─────────────────────────────────────────────┐
+  │   → DataLoader (encoding/separator auto-detect)         │
+  │   → SchemaDetector (vendor profile matching)            │
+  │   → UnitConverter (kN→MPa, mm→strain)                   │
+  ├─ Preprocessing ─────────────────────────────────────────┤
+  │   → SpikeFilter (median filter)                         │
+  │   → MonotonicityChecker (cyclic data detection)         │
+  │   → ToeCompensation (toe region correction)             │
+  │   → Resampler (2000 points)                             │
+  │   → SavitzkyGolayFilter (noise reduction)               │
+  ├─ Extraction ────────────────────────────────────────────┤
+  │   → ElasticModulusDetector (OLS + RANSAC, Annex G)      │
+  │   → YieldDetector (0.2% offset / ReH-ReL)              │
+  │   → UTSDetector (SG-filtered max stress)                │
+  │   → ElongationDetector (At / Ag, Annex A.3.6.1)        │
+  │   → NeckingDetector (Considère criterion)               │
+  │   → StrainHardeningFitter (Hollomon n-K, ISO 10275)     │
+  │   → ToughnessCalculator (trapezoidal integration)       │
+  ├─ Anomaly Detection ────────────────────────────────────┤
+  │   → GripSlippageDetector                                │
+  │   → SensorSaturationDetector                            │
+  │   → NoiseAnalyzer (SNR)                                 │
+  │   → CurveIntegrityChecker (truncation)                  │
+  │   → PropertyValidator (physical consistency)            │
+  └─ Reporting ─────────────────────────────────────────────┘
+      → PDF Report (ISO 17025 template)
+      → JSON + CSV export
 ```
 
-## Kalite Skoru
+Each step is an isolated `PipelineStep` subclass with pre/post validation — making it easy to extend, test, or replace individual components.
 
-| Skor | Grade | Anlami |
-|------|-------|--------|
-| >= 85 | **A+ (Mukemmel)** | Yuksek guvenilirlik, dogrudan kullanilabilir |
-| >= 70 | **A (Iyi)** | Guvenilir sonuclar |
-| >= 55 | **B (Dikkatle Kullanilabilir)** | Bazi sorunlar mevcut |
-| >= 40 | **C (Dusuk Guvenilirlik)** | Dogrulama gerekli |
-| < 40 | **D (Guvenilmez)** | Kullanilmamali |
+---
 
-## Desteklenen CSV Formatlari
+## 📋 Supported CSV Formats
 
-| Vendor | Profil | Encoding | Ayirici |
-|--------|--------|----------|---------|
-| ZwickRoell testXpert II/III | 25 kolon (DE/EN) | CP1252 | ; |
-| Instron Bluehill Universal | 34 kolon (multi-lang) | UTF-8/16 | , |
-| Shimadzu Trapezium X | 31 kolon (JP/EN) | Shift-JIS | , |
-| MTS TestSuite | 9 kolon | UTF-8 | tab |
-| Tinius Olsen Horizon | 12 kolon | CP1252 | , |
-| DEVOTRANS CKS-III | 13 kolon (TR) | CP1254 | ; |
-| Hegewald & Peschke | 14 kolon (DE) | CP1252 | ; |
-| NIST Numisheet | 5 kolon | UTF-8 | , |
-| Generic CSV | auto-detect | auto | auto |
+| Vendor | Profile | Encoding | Separator |
+|--------|---------|----------|-----------|
+| ZwickRoell testXpert II/III | 25 columns (DE/EN) | CP1252 | `;` |
+| Instron Bluehill Universal | 34 columns (multi-lang) | UTF-8/16 | `,` |
+| Shimadzu Trapezium X | 31 columns (JP/EN) | Shift-JIS | `,` |
+| MTS TestSuite | 9 columns | UTF-8 | `tab` |
+| Tinius Olsen Horizon | 12 columns | CP1252 | `,` |
+| DEVOTRANS CKS-III | 13 columns (TR) | CP1254 | `;` |
+| Hegewald & Peschke | 14 columns (DE) | CP1252 | `;` |
+| NIST Numisheet | 5 columns | UTF-8 | `,` |
+| **Generic CSV** | **auto-detect** | **auto** | **auto** |
 
-## API Endpoints
+**Adding a new vendor?** See [CONTRIBUTING.md](CONTRIBUTING.md) or open a [Vendor Support Request](https://github.com/Verm1lion/CurveIntel/issues/new?template=vendor_support.yml).
 
-| Endpoint | Method | Aciklama |
-|----------|--------|----------|
-| `/` | GET | Dashboard (HTML) |
-| `/guide` | GET | Kullanim Kilavuzu (HTML) |
+---
+
+## 📊 Quality Scoring
+
+Every analysis receives a deterministic quality grade:
+
+| Score | Grade | Meaning |
+|-------|-------|---------|
+| ≥ 85 | **A+ (Excellent)** | High reliability, directly usable |
+| ≥ 70 | **A (Good)** | Reliable results |
+| ≥ 55 | **B (Use with Caution)** | Some issues detected |
+| ≥ 40 | **C (Low Reliability)** | Verification required |
+| < 40 | **D (Unreliable)** | Should not be used |
+
+---
+
+## 🧪 Validation
+
+CurveIntel has been validated against **NIST Numisheet 2020** reference datasets:
+
+- ✅ **22/22 batch tests passed** (4 materials: DP980, DP1180, Al6xxx-T4, Al6xxx-T81)
+- ✅ **472-file audit**: 208 full results + 243 cyclic (correctly detected) + 21 metadata + **0 crashes**
+- ✅ Deterministic: same input → same output, every time
+
+See [docs/validation_report.md](docs/validation_report.md) for methodology and results.
+
+---
+
+## 🔌 API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Web dashboard |
+| `/guide` | GET | Interactive usage guide |
 | `/api/health` | GET | Health check |
-| `/api/analyze` | POST | CSV upload + analiz |
-| `/api/results` | GET | Tum sonuclar (JSON) |
-| `/api/report/{id}/pdf` | GET | ISO PDF rapor indirme |
-| `/api/results/{id}` | DELETE | Tek sonuc silme |
-| `/api/results/clear` | DELETE | Tum sonuclari temizle |
+| `/api/analyze` | POST | Upload CSV + run analysis |
+| `/api/results` | GET | List all results (JSON) |
+| `/api/report/{id}/pdf` | GET | Download ISO PDF report |
+| `/api/results/{id}` | DELETE | Delete single result |
+| `/api/results/clear` | DELETE | Clear all results |
 
-## Validasyon (472 Dosya Audit)
+---
 
-```
-FULL_RESULT:    208 (%44.1)  — Basarili monotonic analiz
-CYCLIC:         243 (%51.5)  — Siklik veri (dogru tespit, atlanma)
-NO_DATA:         21 (%4.4)   — Metadata dosyalari
-ERROR:            0 (%0.0)   — Sifir crash
-```
+## 🤝 Contributing
 
-## Proje Yapisi
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
-```
-curveintel/
-  src/
-    pipeline/
-      base.py              # Pipeline altyapisi + AnalysisContext
-      ingestion.py          # CSV okuma + vendor detection
-      vendor_profiles.py    # 8 vendor profili
-      preprocessing.py      # Filtreleme + resampling + MonotonicityChecker
-      extraction.py         # 7 mekanik ozellik hesaplama
-      anomaly.py            # 5 anomali dedektoru
-      reporting.py          # PDF rapor (grafik + anomali + pipeline log)
-      batch_qc.py           # Istatistik + SPC
-    models/
-      enums.py              # AnomalyType, StressType, MaterialType
-  web/
-    app.py                  # FastAPI backend
-    templates/
-      dashboard.html        # Ana dashboard
-      guide.html            # Animasyonlu kullanim kilavuzu
-    static/                 # CSS/JS
-  tests/
-    diagnostic_all_csv.py   # 472 dosya audit script
-  docs/
-    algorithm_specification.md
-  batch_analyze.py          # CLI batch analiz
-  Dockerfile
-  docker-compose.yml
-  CHANGELOG.md
-```
+- Development setup instructions
+- Code style guidelines (Ruff)
+- Pull request process
+- How to add new vendor profiles
 
-## Lisans
+**Good first issues** are labeled with [`good-first-issue`](https://github.com/Verm1lion/CurveIntel/labels/good-first-issue).
 
-Proprietary - Tum haklari saklidir.
+---
 
-## Hukuki Not
+## 📄 License
 
-> Bu yazilim ISO/IEC 17025:2017 Madde 7.11 (Veri Kontrolu ve Bilgi Yonetimi)
-> gereksinimlerini karsilayacak altyapi ile tasarlanmistir.
-> Akredite bir test laboratuvari degildir, akreditasyon vermez ve
-> akreditasyon kuruluslari tarafindan onaylanmamistir.
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## ⚠️ Disclaimer
+
+> CurveIntel is designed to support ISO/IEC 17025:2017 Clause 7.11 (Data Control and Information Management) requirements. However, it is **not** an accredited testing laboratory, does not grant accreditation, and has not been certified by any accreditation body (e.g., TÜRKAK, UKAS, A2LA).
+>
+> All calculation results are provided for **informational and quality assurance support purposes only**. Final responsibility for test results, material acceptance decisions, and regulatory compliance rests entirely with the laboratory operator and the qualified engineer.
