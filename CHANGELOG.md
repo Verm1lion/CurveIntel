@@ -5,6 +5,17 @@ All notable changes to CurveIntel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Baseline Hardening:** GitHub Actions PostgreSQL smoke job for the DB/auth/audit flow
+- **Examples:** `examples/sample_nist.csv` compact smoke-test fixture
+
+### Changed
+- **Runtime Documentation:** README, env template, and guide copy aligned with the database-backed persistence model
+- **Web UI Copy:** Guide and dashboard legal text aligned with persisted results, RBAC, and audit-trail behavior
+- **Repo Hygiene:** Coverage artifacts are now ignored by default
+
 ## [2.0.0] - 2026-04-22
 
 ### Changed
@@ -95,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **472 dosya audit:** 208 FULL_RESULT + 243 CYCLIC + 21 NO_DATA + 0 ERROR
 - Siklik dosyalarda UTS=34786 MPa gibi sacma sonuclar artik uretilmiyor
 
-## [Unreleased]
+## [Roadmap]
 - Vector BTC TESLA CSV profile
 - Docker deployment (FAZ 12)
 - Turkish UI localization (FAZ 12)

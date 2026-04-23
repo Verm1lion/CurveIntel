@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CurveIntel Access</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+    <main class="min-h-screen grid lg:grid-cols-[1.1fr_0.9fr]">
+        <section class="relative overflow-hidden px-8 py-12 lg:px-16">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.28),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.18),_transparent_36%)]"></div>
+            <div class="relative max-w-2xl">
+                <p class="text-sm uppercase tracking-[0.35em] text-cyan-300">CurveIntel</p>
+                <h1 class="mt-6 text-4xl font-semibold leading-tight lg:text-6xl">
+                    Controlled access for tensile analysis traceability.
+                </h1>
+                <p class="mt-6 max-w-xl text-lg text-slate-300">
+                    JWT-backed authentication, role-based access control, and audit-ready analysis workflows for ISO 6892-1 reporting.
+                </p>
+                <div class="mt-10 grid gap-4 sm:grid-cols-3">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Admin</p>
+                        <p class="mt-2 text-sm text-slate-200">Manage users, delete records, and control the full system.</p>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Analyst</p>
+                        <p class="mt-2 text-sm text-slate-200">Run analyses and review persisted test results.</p>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Viewer</p>
+                        <p class="mt-2 text-sm text-slate-200">Read and download reports without mutation rights.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="flex items-center justify-center px-6 py-12 lg:px-12">
+            <div class="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-900/90 p-8 shadow-2xl shadow-cyan-950/30 backdrop-blur">
+                <div id="notice" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
+
+                <div class="space-y-8">
+                    <div>
+                        <h2 class="text-2xl font-semibold">Sign in</h2>
+                        <p class="mt-2 text-sm text-slate-400">Use your CurveIntel credentials to access the dashboard and API.</p>
+                        <form id="login-form" class="mt-6 space-y-4">
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-300" for="login-email">Email</label>
+                                <input id="login-email" name="email" type="email" required class="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 outline-none transition focus:border-cyan-400">
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-300" for="login-password">Password</label>
+                                <input id="login-password" name="password" type="password" required class="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 outline-none transition focus:border-cyan-400">
+                            </div>
+                            <button type="submit" class="w-full rounded-2xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300">
+                                Sign in
+                            </button>
+                        </form>
+                    </div>
+
+                    {% if bootstrap_mode %}
+                    <div class="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5">
+                        <h3 class="text-lg font-semibold text-amber-200">Bootstrap first admin</h3>
+                        <p class="mt-2 text-sm text-amber-100/80">
+                            No users exist yet. The first registration is forced to the <code>admin</code> role.
+                        </p>
+                        <form id="bootstrap-form" class="mt-5 space-y-4">
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-300" for="bootstrap-name">Full name</label>
+                                <input id="bootstrap-name" name="full_name" type="text" required class="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 outline-none transition focus:border-amber-300">
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-300" for="bootstrap-email">Email</label>
+                                <input id="bootstrap-email" name="email" type="email" required class="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 outline-none transition focus:border-amber-300">
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-300" for="bootstrap-password">Password</label>
+                                <input id="bootstrap-password" name="password" type="password" required minlength="12" class="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 outline-none transition focus:border-amber-300">
+                            </div>
+                            <button type="submit" class="w-full rounded-2xl bg-amber-300 px-4 py-3 font-semibold text-slate-950 transition hover:bg-amber-200">
+                                Create first admin
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const notice = document.getElementById("notice");
+
+        function showNotice(kind, message) {
+            notice.className = "rounded-2xl border px-4 py-3 text-sm";
+            if (kind === "error") {
+                notice.classList.add("mb-6", "border-rose-400/30", "bg-rose-400/10", "text-rose-100");
+            } else {
+                notice.classList.add("mb-6", "border-emerald-400/30", "bg-emerald-400/10", "text-emerald-100");
+            }
+            notice.textContent = message;
+        }
+
+        async function submitJson(url, payload) {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                credentials: "same-origin",
+                body: JSON.stringify(payload),
+            });
+            let data = null;
+            try {
+                data = await response.json();
+            } catch {
+                data = null;
+            }
+            if (!response.ok) {
+                const message =
+                    data?.error?.message ||
+                    data?.detail ||
+                    data?.message ||
+                    "Request failed.";
+                throw new Error(message);
+            }
+            return data;
+        }
+
+        document.getElementById("login-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.currentTarget);
+            try {
+                await submitJson("/api/auth/login", Object.fromEntries(formData.entries()));
+                window.location.href = "/";
+            } catch (error) {
+                showNotice("error", error.message);
+            }
+        });
+
+        const bootstrapForm = document.getElementById("bootstrap-form");
+        if (bootstrapForm) {
+            bootstrapForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                try {
+                    await submitJson("/api/auth/register", Object.fromEntries(formData.entries()));
+                    showNotice("success", "Admin user created. Sign in with the credentials you just set.");
+                    event.currentTarget.reset();
+                } catch (error) {
+                    showNotice("error", error.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

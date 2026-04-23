@@ -1,12 +1,12 @@
 # Example CSV Files
 
-This directory contains sample CSV data for testing and demonstration.
+This directory contains sample CSV data for local testing and demonstration.
 
 ## Files
 
 | File | Vendor | Material | Description |
 |------|--------|----------|-------------|
-| `sample_nist.csv` | NIST Numisheet 2020 | DP980 Steel | Reference tensile test data |
+| `sample_nist.csv` | NIST-style sample | DP980-style steel | Compact public-domain-inspired demo excerpt for smoke runs |
 
 ## Usage
 
@@ -32,4 +32,4 @@ When contributing new vendor samples:
 ## Note
 
 > All sample data in this directory is either from public domain sources (NIST)
-> or synthetically generated. No proprietary test data is included.
+> or synthetically reduced for repository use. No proprietary test data is included.

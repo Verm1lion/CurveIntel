@@ -2,40 +2,32 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Sistem bagimliliklari
+# System dependencies required by native Python wheels.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Python bagimliliklari
-COPY pyproject.toml .
-RUN pip install --no-cache-dir \
-    numpy \
-    scipy \
-    pandas \
-    scikit-learn \
-    matplotlib \
-    fastapi \
-    uvicorn[standard] \
-    jinja2 \
-    python-multipart \
-    reportlab
-
-# Uygulama dosyalari
+# Copy the application before installing so Docker uses the project metadata.
+COPY pyproject.toml README.md ./
+COPY alembic.ini ./
+COPY alembic/ alembic/
 COPY src/ src/
 COPY web/ web/
-COPY batch_analyze.py .
-COPY test_validation.py .
+COPY batch_analyze.py ./
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Cikti dizinleri
-RUN mkdir -p reports uploads
+# Install runtime dependencies from pyproject.toml.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir .
 
-# Portlar
+# Runtime directories and entrypoint.
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && mkdir -p reports uploads
+
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
-# Baslat
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8000"]

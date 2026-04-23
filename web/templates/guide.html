@@ -782,27 +782,30 @@
 
         <div class="faq-item glass-panel rounded-xl overflow-hidden">
             <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
-                <span class="font-semibold text-sm pr-4">Verilerim güvende mi?</span>
+                <span class="font-semibold text-sm pr-4">Verilerim nerede tutuluyor / Where is my data stored?</span>
                 <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
             </button>
             <div class="faq-answer px-6">
                 <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
-                    Evet. Tüm veriler yerel makinenizde işlenir, hiçbir veri harici sunuculara gönderilmez. 
-                    Dosyalar yalnızca analiz süresi boyunca bellekte tutulur. CurveIntel tamamen offline çalışabilir.
+                    CurveIntel varsayilan olarak veriyi sizin altyapinizda isler. Analiz snapshot'lari ve
+                    audit kayitlari yapilandirilmis veritabaninda saklanir; yuklenen CSV dosyalari ise
+                    uygulamanin calistigi hostta kalir. Varsayilan kurulum veriyi harici bir SaaS servisine
+                    gondermez ve ister lokal ister kendi sunucunuzda calisabilir.
                 </p>
             </div>
         </div>
 
         <div class="faq-item glass-panel rounded-xl overflow-hidden">
             <button onclick="this.parentElement.classList.toggle('open')" class="w-full flex items-center justify-between px-6 py-5 text-left">
-                <span class="font-semibold text-sm pr-4">Batch modda kaç dosya yükleyebilirim?</span>
+                <span class="font-semibold text-sm pr-4">Batch modda kac dosya yukleyebilirim / How many files can I upload?</span>
                 <span class="faq-toggle text-on-surface-variant text-xl font-light shrink-0">+</span>
             </button>
             <div class="faq-answer px-6">
                 <p class="text-on-surface-variant text-sm leading-relaxed pb-5">
-                    Teknik bir sınır yoktur. Dosyalar sırasıyla işlenir ve her birinin sonucu Batch Results 
-                    tablosunda listelenir. Sonuçları tek tek inceleyebilir, PDF indirebilir veya tek tıkla 
-                    tümünü temizleyebilirsiniz. Session boyunca son 10 analiz dashboard'da tutulur.
+                    Pratik limit disk, RAM ve veritabani kapasitenize baglidir. Dosyalar sirayla islenir ve
+                    sonuc kayitlari gecici bir session listesinde degil, persisted archive icinde saklanir.
+                    Sonuclari tek tek inceleyebilir, PDF indirebilir veya admin yetkisiyle aktif kayitlari
+                    silebilirsiniz.
                 </p>
             </div>
         </div>
@@ -819,8 +822,8 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </a>
     <p class="text-xs text-on-surface-variant/50 max-w-lg mx-auto mt-6 leading-relaxed">
-        CurveIntel v1.1.0 — Hesaplamalar ISO 6892-1:2019 standardına göre yapılır. 
-        Bu yazılım herhangi bir akreditasyon kuruluşu tarafından sertifikalandırılmamıştır.
+        CurveIntel v2.0.0 - Hesaplamalar ISO 6892-1:2019 metodolojisini izler / Calculations
+        follow ISO 6892-1:2019. This software is not accredited by any accreditation body.
     </p>
 </footer>
 

@@ -1,406 +1,801 @@
 """
-CurveIntel Web — FastAPI Backend.
+CurveIntel Web - FastAPI backend with auth, RBAC, and audit logging.
 
 Endpoints:
-  GET  /            → Dashboard (son analiz sonuclari)
-  POST /api/analyze  → CSV upload + pipeline calistir
-  GET  /api/results  → Tum batch sonuclari (JSON)
-  GET  /api/curve/{id} → Stress-strain curve data (JSON)
+  GET  /                 -> Authenticated dashboard
+  GET  /login            -> Browser login page
+  POST /api/analyze      -> CSV upload + pipeline execution
+  GET  /api/results      -> Persisted analysis results as JSON
+  GET  /api/report/{id}  -> PDF report download
 """
+
 from __future__ import annotations
 
-import json
+from contextlib import asynccontextmanager
+from http import HTTPStatus
+import os
 import sys
-import uuid
-import time
-from io import BytesIO
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-import numpy as np
-from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exception_handlers import (
+    http_exception_handler as fastapi_http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Pipeline imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from src import __version__ as CURVEINTEL_VERSION
+from src.curveintel.auth.dependencies import get_optional_current_user, require_roles
+from src.curveintel.auth.router import router as auth_router
+from src.curveintel.auth.security import ensure_default_admin
+from src.curveintel.db.database import SessionLocal, get_db_session, get_engine
+from src.curveintel.db.enums import AuditAction, AuditEntityType, AuditStatus, UserRole
+from src.curveintel.db.repository import (
+    AnalysisResultRepository,
+    AuditLogRepository,
+    UserRepository,
+)
+from src.curveintel.db.schemas import UserRead
+from src.curveintel.db.service import (
+    append_audit_event,
+    ensure_database_schema_ready,
+    persist_analysis_result,
+)
+from src.curveintel.db.serializers import (
+    build_analysis_context_from_snapshot,
+    build_analysis_payload,
+)
+from src.curveintel.web.settings import get_web_settings
+from src.pipeline.anomaly import (
+    CurveIntegrityChecker,
+    GripSlippageDetector,
+    NoiseAnalyzer,
+    PropertyValidator,
+    SensorSaturationDetector,
+)
 from src.pipeline.base import AnalysisContext, Pipeline
+from src.pipeline.extraction import (
+    ElasticModulusDetector,
+    ElongationDetector,
+    NeckingDetector,
+    StrainHardeningFitter,
+    StrainRateValidator,
+    ToughnessCalculator,
+    UTSDetector,
+    YieldDetector,
+)
 from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
 from src.pipeline.preprocessing import (
-    MonotonicityChecker, Resampler, SavitzkyGolayFilter, SpikeFilter, ToeCompensation,
+    MonotonicityChecker,
+    Resampler,
+    SavitzkyGolayFilter,
+    SpikeFilter,
+    ToeCompensation,
 )
-from src.pipeline.extraction import (
-    ElasticModulusDetector, ElongationDetector, NeckingDetector,
-    StrainHardeningFitter, StrainRateValidator, ToughnessCalculator,
-    UTSDetector, YieldDetector,
-)
-from src.pipeline.anomaly import (
-    GripSlippageDetector, SensorSaturationDetector,
-    NoiseAnalyzer, CurveIntegrityChecker, PropertyValidator,
-)
-from src.pipeline.reporting import _quality_score, generate_pdf_report
+from src.pipeline.reporting import generate_pdf_report
 
-# ── App setup ──
-app = FastAPI(title="CurveIntel", version="1.0.0")
 
 BASE_DIR = Path(__file__).parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-
-# ── In-memory results store ──
-analysis_results: list[dict[str, Any]] = []
-analysis_contexts: dict[str, AnalysisContext] = {}  # id -> ctx for PDF generation
 UPLOAD_DIR = BASE_DIR.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint (Docker HEALTHCHECK)."""
-    return {"status": "ok", "version": "1.0.0", "engine": "CurveIntel"}
+def _open_db_session() -> Session:
+    """Open a plain SQLAlchemy session for lifespan hooks."""
+
+    get_engine()
+    return SessionLocal()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Application lifespan hooks."""
+
+    ensure_database_schema_ready()
+    db = _open_db_session()
+    try:
+        seeded_user = ensure_default_admin(db)
+        if seeded_user is not None:
+            append_audit_event(
+                db,
+                None,
+                action=AuditAction.SEED,
+                entity_type=AuditEntityType.USER,
+                entity_id=str(seeded_user.id),
+                actor_user_id=seeded_user.id,
+                after_snapshot=seeded_user.model_dump(mode="json"),
+                event_meta={"seed_kind": "default_admin"},
+            )
+    finally:
+        db.close()
+
+    await load_demo_data()
+    yield
+
+
+app = FastAPI(title="CurveIntel", version=CURVEINTEL_VERSION, lifespan=lifespan)
+app.include_router(auth_router)
+web_settings = get_web_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=web_settings.cors_allow_origins,
+    allow_credentials=web_settings.cors_allow_credentials,
+    allow_methods=web_settings.cors_allow_methods,
+    allow_headers=web_settings.cors_allow_headers,
+)
+
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+def render_template(
+    request: Request,
+    name: str,
+    context: dict[str, Any],
+    status_code: int = 200,
+) -> HTMLResponse:
+    """Render templates across old and new Starlette TemplateResponse signatures."""
+
+    try:
+        return templates.TemplateResponse(
+            request=request,
+            name=name,
+            context=context,
+            status_code=status_code,
+        )
+    except TypeError:
+        return templates.TemplateResponse(name, context, status_code=status_code)
+
+
+def _is_api_request(request: Request) -> bool:
+    """Return whether the current request targets the JSON API surface."""
+
+    return request.url.path.startswith("/api/")
+
+
+def _api_error_code(status_code: int) -> str:
+    """Map HTTP status codes to stable API error codes."""
+
+    return {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        409: "conflict",
+        422: "validation_error",
+        500: "internal_server_error",
+    }.get(status_code, "http_error")
+
+
+def _api_error_response(
+    request: Request,
+    *,
+    status_code: int,
+    message: str,
+    code: str | None = None,
+    details: Any | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Build the standardized API error envelope."""
+
+    payload: dict[str, Any] = {
+        "status": "error",
+        "error": {
+            "code": code or _api_error_code(status_code),
+            "message": message,
+            "path": request.url.path,
+        },
+    }
+    request_id = request.headers.get("x-request-id")
+    if request_id:
+        payload["error"]["request_id"] = request_id
+    if details is not None:
+        payload["error"]["details"] = details
+    return JSONResponse(payload, status_code=status_code, headers=headers)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(request: Request, exc: StarletteHTTPException):
+    """Return standardized API errors while preserving default HTML behavior elsewhere."""
+
+    if not _is_api_request(request):
+        return await fastapi_http_exception_handler(request, exc)
+
+    message = exc.detail if isinstance(exc.detail, str) else HTTPStatus(exc.status_code).phrase
+    details = None if isinstance(exc.detail, str) else exc.detail
+    return _api_error_response(
+        request,
+        status_code=exc.status_code,
+        message=message,
+        details=details,
+        headers=dict(exc.headers or {}),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_exception(request: Request, exc: RequestValidationError):
+    """Return structured validation errors for API routes."""
+
+    if not _is_api_request(request):
+        return await request_validation_exception_handler(request, exc)
+
+    return _api_error_response(
+        request,
+        status_code=422,
+        message="Request validation failed.",
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_exception(request: Request, exc: Exception):
+    """Return safe standardized JSON for unexpected API failures."""
+
+    if not _is_api_request(request):
+        return HTMLResponse("Internal Server Error", status_code=500)
+
+    details = None
+    if web_settings.expose_internal_error_details:
+        details = {
+            "exception": exc.__class__.__name__,
+            "message": str(exc),
+        }
+    return _api_error_response(
+        request,
+        status_code=500,
+        message="Internal server error.",
+        details=details,
+    )
 
 
 def build_pipeline(csv_path: Path) -> Pipeline:
-    return Pipeline([
-        DataLoader(csv_path),
-        SchemaDetector(),
-        UnitConverter(),
-        SpikeFilter(window_size=5, threshold_sigma=3.0),
-        MonotonicityChecker(),
-        ToeCompensation(),
-        Resampler(n_points=2000),
-        SavitzkyGolayFilter(window_length=21, polyorder=3),
-        ElasticModulusDetector(),
-        YieldDetector(),
-        UTSDetector(),
-        ElongationDetector(),
-        NeckingDetector(),
-        StrainHardeningFitter(),
-        ToughnessCalculator(),
-        StrainRateValidator(),
-        GripSlippageDetector(),
-        SensorSaturationDetector(),
-        NoiseAnalyzer(),
-        CurveIntegrityChecker(),
-        PropertyValidator(),
-    ])
+    """Build the deterministic analysis pipeline."""
+
+    return Pipeline(
+        [
+            DataLoader(csv_path),
+            SchemaDetector(),
+            UnitConverter(),
+            SpikeFilter(window_size=5, threshold_sigma=3.0),
+            MonotonicityChecker(),
+            ToeCompensation(),
+            Resampler(n_points=2000),
+            SavitzkyGolayFilter(window_length=21, polyorder=3),
+            ElasticModulusDetector(),
+            YieldDetector(),
+            UTSDetector(),
+            ElongationDetector(),
+            NeckingDetector(),
+            StrainHardeningFitter(),
+            ToughnessCalculator(),
+            StrainRateValidator(),
+            GripSlippageDetector(),
+            SensorSaturationDetector(),
+            NoiseAnalyzer(),
+            CurveIntegrityChecker(),
+            PropertyValidator(),
+        ]
+    )
 
 
 def ctx_to_dict(ctx: AnalysisContext, filename: str) -> dict[str, Any]:
-    """AnalysisContext -> dashboard-friendly dict."""
-    p = ctx.properties
-    score, grade = _quality_score(ctx)
+    """Return the canonical dashboard payload for an analysis context."""
 
-    # Curve data: downsample to max 500 points for chart
-    strain_list = []
-    stress_list = []
-    if ctx.has_data and len(ctx.strain) > 0:
-        step = max(1, len(ctx.strain) // 500)
-        strain_list = ctx.strain[::step].tolist()
-        stress_list = ctx.stress[::step].tolist()
-
-    # Yield point
-    yield_strain = ctx.extra.get("yield_strain")
-    uts_idx = ctx.extra.get("uts_idx")
-    neck_idx = ctx.extra.get("necking_idx")
-
-    yield_point = None
-    if yield_strain is not None and p.yield_strength_mpa is not None:
-        yield_point = {"strain": float(yield_strain), "stress": float(p.yield_strength_mpa)}
-
-    uts_point = None
-    if uts_idx is not None and p.ultimate_tensile_mpa is not None and ctx.has_data:
-        uts_point = {"strain": float(ctx.strain[uts_idx]), "stress": float(p.ultimate_tensile_mpa)}
-
-    neck_point = None
-    if neck_idx is not None and ctx.has_data:
-        neck_point = {"strain": float(ctx.strain[neck_idx]), "stress": float(ctx.stress[neck_idx])}
-
-    # Pipeline steps
-    steps = []
-    total_ms = 0
-    for r in ctx.step_results:
-        steps.append({
-            "name": r.step_name,
-            "status": r.status.value,
-            "duration_ms": round(r.duration_ms, 2),
-            "message": r.message,
-        })
-        total_ms += r.duration_ms
-
-    # Pipeline layer summary (for stepper UI)
-    layer_status = {
-        "ingestion": "success",
-        "preprocessing": "success",
-        "extraction": "success",
-        "anomaly": "success",
-        "reporting": "success",
-    }
-    for r in ctx.step_results:
-        name = r.step_name.lower()
-        if name in ("dataloader", "schemadetector", "unitconverter"):
-            layer = "ingestion"
-        elif name in ("spikefilter", "toecompensation", "resampler", "savitzkygolayfilter"):
-            layer = "preprocessing"
-        elif name in ("elasticmodulusdetector", "yielddetector", "utsdetector",
-                      "elongationdetector", "neckingdetector", "strainhardeningfitter",
-                      "toughnesscalculator"):
-            layer = "extraction"
-        elif name in ("gripslippagedetector", "sensorsaturationdetector", "noiseanalyzer",
-                      "curveintegritychecker", "propertyvalidator"):
-            layer = "anomaly"
-        else:
-            layer = "reporting"
-
-        if r.status.value == "failure":
-            layer_status[layer] = "failure"
-        elif r.status.value == "warning" and layer_status[layer] != "failure":
-            layer_status[layer] = "warning"
-
-    # Anomalies
-    anomalies = []
-    info_count = warn_count = crit_count = 0
-    for a in ctx.anomalies:
-        anomalies.append({
-            "type": a.anomaly_type.value,
-            "severity": a.severity,
-            "description": a.description,
-            "confidence": a.confidence,
-            "strain_location": a.strain_location,
-        })
-        if a.severity == "info":
-            info_count += 1
-        elif a.severity == "warning":
-            warn_count += 1
-        else:
-            crit_count += 1
-
-    result_id = str(uuid.uuid4())[:8]
-
-    # Vendor detection info
-    vendor_name = ctx.extra.get("vendor_name", "Generic CSV")
-    vendor_confidence = ctx.extra.get("vendor_confidence", 0)
-    detected_encoding = ctx.extra.get("detected_encoding", "utf-8")
-    detected_separator = ctx.extra.get("detected_separator", ",")
-
-    # Strain rate info
-    strain_rate_range = ctx.extra.get("strain_rate_range", None)
-    strain_rate_code = ctx.extra.get("strain_rate_code", None)
-    strain_rate_value = ctx.extra.get("strain_rate_median", None)
-    strain_rate_compliant = ctx.extra.get("strain_rate_compliant", None)
-
-    return {
-        "id": result_id,
-        "filename": filename,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M"),
-        "material_type": ctx.metadata.material_type.value if ctx.metadata.material_type else "unknown",
-        "stress_type": ctx.stress_type.value,
-        "n_points": ctx.n_points,
-        "is_cyclic": ctx.extra.get("is_cyclic", False),
-        "strain_reversals": ctx.extra.get("strain_reversals", 0),
-        "properties": {
-            "elastic_modulus_gpa": round(p.elastic_modulus_gpa, 1) if p.elastic_modulus_gpa else None,
-            "yield_strength_mpa": round(p.yield_strength_mpa, 1) if p.yield_strength_mpa else None,
-            "yield_lower_mpa": round(p.yield_lower_mpa, 1) if p.yield_lower_mpa else None,
-            "ultimate_tensile_mpa": round(p.ultimate_tensile_mpa, 1) if p.ultimate_tensile_mpa else None,
-            "elongation_at_break_pct": round(p.elongation_at_break_pct, 1) if p.elongation_at_break_pct else None,
-            "uniform_elongation_pct": round(p.uniform_elongation_pct, 2) if p.uniform_elongation_pct else None,
-            "strain_hardening_n": round(p.strain_hardening_n, 3) if p.strain_hardening_n else None,
-            "strength_coefficient_k": round(p.strength_coefficient_k, 1) if p.strength_coefficient_k else None,
-            "toughness_mj_m3": round(p.toughness_mj_m3, 2) if p.toughness_mj_m3 else None,
-            "yield_behavior": p.yield_behavior.value,
-            "method_tags": dict(p.method_tags),
-        },
-        "quality": {
-            "score": round(score, 0),
-            "grade": grade.split("(")[0].strip(),
-            "grade_label": grade,
-            "snr_db": round(ctx.extra.get("snr_db", 0), 1),
-            "noise_pct": round(ctx.extra.get("noise_pct", 0), 2),
-            "elastic_r2": round(ctx.extra.get("elastic_r2", 0), 6),
-            "elastic_sm_rel": round(ctx.extra.get("elastic_sm_rel", 0), 2),
-            "elastic_n_points": ctx.extra.get("elastic_n_points"),
-            "elastic_iterations": ctx.extra.get("elastic_iterations"),
-        },
-        "vendor": {
-            "name": vendor_name,
-            "confidence": vendor_confidence,
-            "encoding": detected_encoding,
-            "separator": detected_separator,
-        },
-        "strain_rate": {
-            "range": strain_rate_range,
-            "code": strain_rate_code,
-            "value": round(strain_rate_value, 6) if strain_rate_value else None,
-            "compliant": strain_rate_compliant,
-        },
-        "curve": {
-            "strain": strain_list,
-            "stress": stress_list,
-            "yield_point": yield_point,
-            "uts_point": uts_point,
-            "neck_point": neck_point,
-        },
-        "pipeline": {
-            "steps": steps,
-            "total_ms": round(total_ms, 1),
-            "layer_status": layer_status,
-        },
-        "anomalies": {
-            "entries": anomalies,
-            "total": len(anomalies),
-            "info": info_count,
-            "warning": warn_count,
-            "critical": crit_count,
-        },
-    }
+    return build_analysis_payload(ctx, filename)
 
 
-# ── Routes ──
+def _resolve_upload_path(filename: str | None) -> Path:
+    """Resolve a safe upload target inside the uploads directory."""
+
+    if not filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must include a filename.")
+
+    safe_name = Path(filename).name
+    if safe_name in {"", ".", ".."}:
+        raise HTTPException(status_code=400, detail="Uploaded file has an invalid filename.")
+    return UPLOAD_DIR / safe_name
+
+
+def _parse_analysis_id(result_id: str) -> UUID | None:
+    """Parse a result identifier into a UUID."""
+
+    try:
+        return UUID(result_id)
+    except ValueError:
+        return None
+
+
+def _get_recent_results_payloads(db: Session, limit: int = 10) -> list[dict[str, Any]]:
+    """Load recent persisted results."""
+
+    repo = AnalysisResultRepository(db)
+    return [result.analysis_payload for result in repo.list_recent(limit=limit)]
+
+
+def _get_persisted_result(db: Session, result_id: str):
+    """Load a persisted analysis by its public UUID string."""
+
+    parsed_id = _parse_analysis_id(result_id)
+    if parsed_id is None:
+        return None
+    repo = AnalysisResultRepository(db)
+    return repo.get_by_id(parsed_id)
+
+
+def _get_dashboard_state(
+    db: Session,
+    *,
+    selected_result_id: str | None = None,
+    limit: int = 10,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Return the selected dashboard result and the recent archive list."""
+
+    batch_results = _get_recent_results_payloads(db, limit=limit)
+    current = batch_results[0] if batch_results else None
+
+    if not selected_result_id:
+        return current, batch_results
+
+    persisted = _get_persisted_result(db, selected_result_id)
+    if persisted is None:
+        return current, batch_results
+
+    current = persisted.analysis_payload
+    if all(result["id"] != current["id"] for result in batch_results):
+        batch_results = [current, *batch_results[: max(limit - 1, 0)]]
+    return current, batch_results
+
+
+def _serialize_audit_logs(db: Session, entries: list[Any]) -> list[dict[str, Any]]:
+    """Serialize audit DTOs with lightweight actor metadata for API/UI consumption."""
+
+    user_repo = UserRepository(db)
+    actor_cache: dict[str, dict[str, Any] | None] = {}
+    items: list[dict[str, Any]] = []
+
+    for entry in entries:
+        actor = None
+        if entry.actor_user_id is not None:
+            actor_key = str(entry.actor_user_id)
+            if actor_key not in actor_cache:
+                actor_user = user_repo.get_by_id(entry.actor_user_id)
+                actor_cache[actor_key] = (
+                    {
+                        "id": str(actor_user.id),
+                        "email": actor_user.email,
+                        "full_name": actor_user.full_name,
+                        "role": actor_user.role.value,
+                    }
+                    if actor_user is not None
+                    else None
+                )
+            actor = actor_cache[actor_key]
+
+        items.append(
+            {
+                "id": str(entry.id),
+                "occurred_at": entry.occurred_at.isoformat(),
+                "actor_user_id": str(entry.actor_user_id) if entry.actor_user_id else None,
+                "actor": actor,
+                "action": entry.action.value,
+                "entity_type": entry.entity_type.value,
+                "entity_id": entry.entity_id,
+                "request_id": entry.request_id,
+                "ip_address": entry.ip_address,
+                "user_agent": entry.user_agent,
+                "status": entry.status.value,
+                "before_snapshot": entry.before_snapshot,
+                "after_snapshot": entry.after_snapshot,
+                "event_meta": entry.event_meta,
+            }
+        )
+
+    return items
+
+
+def _get_recent_audit_payloads(
+    db: Session,
+    *,
+    limit: int = 25,
+    entity_type: AuditEntityType | None = None,
+    entity_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Load recent audit trail entries with optional entity filtering."""
+
+    bounded_limit = max(1, min(limit, 200))
+    repo = AuditLogRepository(db)
+    if entity_type is not None and entity_id:
+        entries = repo.list_for_entity(entity_type.value, entity_id, limit=bounded_limit)
+    else:
+        entries = repo.list_recent(limit=bounded_limit)
+    return _serialize_audit_logs(db, entries)
+
+
+def _resolve_report_context(
+    context_snapshot: dict[str, Any],
+) -> tuple[AnalysisContext | None, str, str | None]:
+    """Resolve a report context directly from the persisted snapshot."""
+
+    try:
+        return build_analysis_context_from_snapshot(context_snapshot), "snapshot_rehydrated", None
+    except (TypeError, ValueError, KeyError) as exc:
+        return None, "simplified_fallback", str(exc)
+
+
+@app.get("/api/health")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint."""
+
+    return {"status": "ok", "version": CURVEINTEL_VERSION, "engine": "CurveIntel"}
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead | None = Depends(get_optional_current_user),
+):
+    """Login page with bootstrap registration support."""
+
+    if current_user is not None:
+        return RedirectResponse(url="/", status_code=303)
+
+    bootstrap_mode = UserRepository(db).count_users() == 0
+    return render_template(
+        request=request,
+        name="login.html",
+        context={"request": request, "bootstrap_mode": bootstrap_mode},
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    """Ana dashboard sayfasi."""
-    # Son analiz sonucu (varsa)
-    current = analysis_results[-1] if analysis_results else None
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "current": current,
-        "batch_results": analysis_results[-10:],  # Son 10
-        "has_data": current is not None,
-    })
+async def dashboard(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead | None = Depends(get_optional_current_user),
+):
+    """Authenticated dashboard page."""
+
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    current, recent_results = _get_dashboard_state(
+        db,
+        selected_result_id=request.query_params.get("id"),
+        limit=10,
+    )
+    can_upload = current_user.role in {UserRole.ADMIN, UserRole.ANALYST}
+    can_manage_results = current_user.role == UserRole.ADMIN
+    audit_logs = _get_recent_audit_payloads(db, limit=12) if can_manage_results else []
+    return render_template(
+        request=request,
+        name="dashboard.html",
+        context={
+            "request": request,
+            "current": current,
+            "batch_results": recent_results,
+            "has_data": current is not None,
+            "current_user": current_user,
+            "can_upload": can_upload,
+            "can_manage_results": can_manage_results,
+            "selected_result_id": current["id"] if current is not None else None,
+            "audit_logs": audit_logs,
+        },
+    )
 
 
 @app.get("/guide", response_class=HTMLResponse)
-async def guide_page(request: Request):
-    """Kullanim kilavuzu sayfasi."""
-    return templates.TemplateResponse("guide.html", {"request": request})
+async def guide_page(request: Request) -> HTMLResponse:
+    """Usage guide page."""
+
+    return render_template(
+        request=request,
+        name="guide.html",
+        context={"request": request},
+    )
+
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...)):
-    """CSV upload edip pipeline calistir."""
-    # Dosyayi kaydet
-    save_path = UPLOAD_DIR / file.filename
-    content = await file.read()
-    with open(save_path, "wb") as f:
-        f.write(content)
+async def analyze(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN, UserRole.ANALYST)),
+) -> JSONResponse:
+    """Upload a CSV file, persist the result, and emit an audit event."""
 
-    # Pipeline calistir
+    save_path = _resolve_upload_path(file.filename)
+    content = await file.read()
+    with open(save_path, "wb") as file_handle:
+        file_handle.write(content)
+
     try:
         pipeline = build_pipeline(save_path)
         ctx = AnalysisContext()
         ctx = pipeline.run(ctx)
-        result = ctx_to_dict(ctx, file.filename)
-        analysis_results.append(result)
-        analysis_contexts[result["id"]] = ctx  # PDF icin sakla
+        payload = ctx_to_dict(ctx, file.filename)
+        persisted = persist_analysis_result(
+            db,
+            ctx,
+            file.filename,
+            source_file_path=save_path,
+            created_by_user_id=current_user.id,
+            analysis_id=payload["id"],
+        )
+        result = persisted.analysis_payload
+        append_audit_event(
+            db,
+            request,
+            action=AuditAction.CREATE,
+            entity_type=AuditEntityType.ANALYSIS_RESULT,
+            entity_id=str(persisted.id),
+            actor_user_id=current_user.id,
+            after_snapshot=result,
+            event_meta={"source_filename": file.filename},
+        )
         return JSONResponse({"status": "success", "data": result})
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    except Exception as exc:
+        append_audit_event(
+            db,
+            request,
+            action=AuditAction.CREATE,
+            entity_type=AuditEntityType.SYSTEM,
+            entity_id=save_path.name,
+            actor_user_id=current_user.id,
+            status=AuditStatus.FAILURE,
+            event_meta={"operation": "analyze", "error": str(exc)[:500]},
+        )
+        raise HTTPException(status_code=500, detail="Analysis execution failed.") from exc
 
 
 @app.get("/api/results")
-async def get_results():
-    """Tum batch sonuclari."""
-    return JSONResponse({"results": analysis_results})
+async def get_results(
+    db: Session = Depends(get_db_session),
+    _: UserRead = Depends(require_roles(UserRole.ADMIN, UserRole.ANALYST, UserRole.VIEWER)),
+) -> JSONResponse:
+    """Return persisted batch results."""
+
+    return JSONResponse({"results": _get_recent_results_payloads(db, limit=100)})
 
 
-@app.get("/api/report/{result_id}/pdf")
-async def download_pdf(result_id: str):
-    """PDF rapor indir — reporting.py'deki profesyonel raporu kullanir."""
-    for r in analysis_results:
-        if r["id"] == result_id:
-            pdf_path = UPLOAD_DIR / f"report_{result_id}.pdf"
+@app.get("/api/audit-logs")
+async def get_audit_logs(
+    request: Request,
+    entity_type: AuditEntityType | None = None,
+    entity_id: str | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
+) -> JSONResponse:
+    """Return recent audit trail entries for admins."""
 
-            ctx = analysis_contexts.get(result_id)
-            if ctx:
-                # Profesyonel rapor: grafik, anomali, pipeline log, imza alani
-                generate_pdf_report(
-                    ctx,
-                    output_path=pdf_path,
-                    company_name="CurveIntel Analysis Engine",
-                    test_standard="ISO 6892-1:2019",
-                )
-            else:
-                # Context yok (eski sonuc) — fallback basit rapor
-                from reportlab.lib.pagesizes import A4
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-                from reportlab.lib.styles import getSampleStyleSheet
-                from reportlab.lib import colors
-                from reportlab.lib.units import cm
+    if entity_id is not None and entity_type is None:
+        raise HTTPException(
+            status_code=422, detail="entity_type is required when entity_id is provided."
+        )
 
-                doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
-                styles = getSampleStyleSheet()
-                elements = []
-                elements.append(Paragraph("CurveIntel Analysis Report", styles["Title"]))
-                elements.append(Spacer(1, 0.5 * cm))
-                elements.append(Paragraph(f"File: {r['filename']}", styles["Normal"]))
-                elements.append(Paragraph(f"Date: {r['timestamp']}", styles["Normal"]))
-                elements.append(Paragraph(f"Quality: {r['quality']['score']}/100", styles["Normal"]))
-                elements.append(Spacer(1, 0.5 * cm))
-                elements.append(Paragraph("Mechanical Properties", styles["Heading2"]))
-                p = r["properties"]
-                rows = [["Property", "Value"]]
-                if p.get("elastic_modulus_gpa"): rows.append(["E", f"{p['elastic_modulus_gpa']} GPa"])
-                if p.get("yield_strength_mpa"): rows.append(["Rp0.2", f"{p['yield_strength_mpa']} MPa"])
-                if p.get("ultimate_tensile_mpa"): rows.append(["Rm", f"{p['ultimate_tensile_mpa']} MPa"])
-                if p.get("elongation_at_break_pct"): rows.append(["At", f"{p['elongation_at_break_pct']}%"])
-                t = Table(rows, colWidths=[6*cm, 8*cm])
-                t.setStyle(TableStyle([
-                    ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1565c0")),
-                    ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-                    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-                    ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-                ]))
-                elements.append(t)
-                elements.append(Spacer(1, 1 * cm))
-                elements.append(Paragraph(
-                    "<i>Context not available — simplified report. "
-                    "Re-upload the file for the full ISO report.</i>",
-                    styles["Normal"]
-                ))
-                doc.build(elements)
+    items = _get_recent_audit_payloads(
+        db,
+        limit=limit,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+    append_audit_event(
+        db,
+        request,
+        action=AuditAction.READ,
+        entity_type=AuditEntityType.AUDIT_LOG,
+        entity_id=entity_id or "recent",
+        actor_user_id=current_user.id,
+        event_meta={
+            "filter_entity_type": entity_type.value if entity_type is not None else None,
+            "filter_entity_id": entity_id,
+            "returned_count": len(items),
+        },
+    )
+    return JSONResponse({"items": items, "count": len(items)})
 
-            def iterfile():
-                with open(pdf_path, "rb") as f:
-                    yield from f
 
-            return StreamingResponse(
-                iterfile(),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=CurveIntel_{result_id}.pdf"}
+@app.get("/api/report/{result_id}/pdf", response_model=None)
+async def download_pdf(
+    result_id: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(
+        require_roles(UserRole.ADMIN, UserRole.ANALYST, UserRole.VIEWER)
+    ),
+):
+    """Download a PDF report for a single persisted result."""
+
+    persisted = _get_persisted_result(db, result_id)
+    if persisted is None:
+        raise HTTPException(status_code=404, detail="Analysis result not found.")
+
+    result = persisted.analysis_payload
+    pdf_path = UPLOAD_DIR / f"report_{result_id}.pdf"
+    ctx, report_source, report_context_error = _resolve_report_context(persisted.context_snapshot)
+
+    if ctx:
+        generate_pdf_report(
+            ctx,
+            output_path=pdf_path,
+            company_name="CurveIntel Analysis Engine",
+            test_standard="ISO 6892-1:2019",
+        )
+    else:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
+        styles = getSampleStyleSheet()
+        elements = []
+        elements.append(Paragraph("CurveIntel Analysis Report", styles["Title"]))
+        elements.append(Spacer(1, 0.5 * cm))
+        elements.append(Paragraph(f"File: {result['filename']}", styles["Normal"]))
+        elements.append(Paragraph(f"Date: {result['timestamp']}", styles["Normal"]))
+        elements.append(Paragraph(f"Quality: {result['quality']['score']}/100", styles["Normal"]))
+        elements.append(Spacer(1, 0.5 * cm))
+        elements.append(Paragraph("Mechanical Properties", styles["Heading2"]))
+        properties = result["properties"]
+        rows = [["Property", "Value"]]
+        if properties.get("elastic_modulus_gpa"):
+            rows.append(["E", f"{properties['elastic_modulus_gpa']} GPa"])
+        if properties.get("yield_strength_mpa"):
+            rows.append(["Rp0.2", f"{properties['yield_strength_mpa']} MPa"])
+        if properties.get("ultimate_tensile_mpa"):
+            rows.append(["Rm", f"{properties['ultimate_tensile_mpa']} MPa"])
+        if properties.get("elongation_at_break_pct"):
+            rows.append(["At", f"{properties['elongation_at_break_pct']}%"])
+        table = Table(rows, colWidths=[6 * cm, 8 * cm])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1565c0")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ]
             )
-    return JSONResponse({"error": "Not found"}, status_code=404)
+        )
+        elements.append(table)
+        elements.append(Spacer(1, 1 * cm))
+        elements.append(
+            Paragraph(
+                "<i>Context not available - simplified report. "
+                "Re-upload the file for the full ISO report.</i>",
+                styles["Normal"],
+            )
+        )
+        doc.build(elements)
+
+    append_audit_event(
+        db,
+        request,
+        action=AuditAction.DOWNLOAD,
+        entity_type=AuditEntityType.REPORT,
+        entity_id=result_id,
+        actor_user_id=current_user.id,
+        after_snapshot={"result_id": result_id, "filename": result["filename"]},
+        event_meta={
+            "report_source": report_source,
+            "context_error": report_context_error,
+        },
+    )
+
+    def iterfile():
+        with open(pdf_path, "rb") as file_handle:
+            yield from file_handle
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=CurveIntel_{result_id}.pdf"},
+    )
 
 
 @app.delete("/api/results/clear")
-async def clear_results():
-    """Tum sonuclari temizle."""
-    analysis_results.clear()
-    analysis_contexts.clear()
-    return JSONResponse({"status": "cleared"})
+async def clear_results(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
+) -> JSONResponse:
+    """Soft-delete all active persisted results."""
+
+    repo = AnalysisResultRepository(db)
+    active_results = repo.list_recent(limit=None)
+    deleted_count = 0
+    for active_result in active_results:
+        deleted = repo.soft_delete(active_result.id, deleted_by_user_id=current_user.id)
+        if deleted is None:
+            continue
+        deleted_count += 1
+        append_audit_event(
+            db,
+            request,
+            action=AuditAction.DELETE,
+            entity_type=AuditEntityType.ANALYSIS_RESULT,
+            entity_id=str(deleted.id),
+            actor_user_id=current_user.id,
+            before_snapshot=active_result.analysis_payload,
+            after_snapshot={
+                "id": str(deleted.id),
+                "deleted_at": deleted.deleted_at.isoformat() if deleted.deleted_at else None,
+                "deleted_by_user_id": str(current_user.id),
+            },
+        )
+
+    return JSONResponse({"status": "cleared", "deleted_count": deleted_count})
 
 
 @app.get("/api/results/{result_id}")
-async def get_result(result_id: str):
-    """Tek sonuc detayi."""
-    for r in analysis_results:
-        if r["id"] == result_id:
-            return JSONResponse(r)
-    return JSONResponse({"error": "Not found"}, status_code=404)
+async def get_result(
+    result_id: str,
+    db: Session = Depends(get_db_session),
+    _: UserRead = Depends(require_roles(UserRole.ADMIN, UserRole.ANALYST, UserRole.VIEWER)),
+) -> JSONResponse:
+    """Return a single persisted result."""
+
+    persisted = _get_persisted_result(db, result_id)
+    if persisted is None:
+        raise HTTPException(status_code=404, detail="Analysis result not found.")
+    return JSONResponse(persisted.analysis_payload)
 
 
 @app.delete("/api/results/{result_id}")
-async def delete_result(result_id: str):
-    """Tek sonucu sil."""
-    global analysis_results
-    analysis_results = [r for r in analysis_results if r["id"] != result_id]
-    analysis_contexts.pop(result_id, None)
+async def delete_result(
+    result_id: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
+) -> JSONResponse:
+    """Soft-delete a single persisted result."""
+
+    parsed_id = _parse_analysis_id(result_id)
+    if parsed_id is None:
+        raise HTTPException(status_code=404, detail="Analysis result not found.")
+
+    repo = AnalysisResultRepository(db)
+    existing = repo.get_by_id(parsed_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Analysis result not found.")
+
+    deleted = repo.soft_delete(parsed_id, deleted_by_user_id=current_user.id)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="Analysis result not found.")
+
+    append_audit_event(
+        db,
+        request,
+        action=AuditAction.DELETE,
+        entity_type=AuditEntityType.ANALYSIS_RESULT,
+        entity_id=result_id,
+        actor_user_id=current_user.id,
+        before_snapshot=existing.analysis_payload,
+        after_snapshot={
+            "id": result_id,
+            "deleted_at": deleted.deleted_at.isoformat() if deleted.deleted_at else None,
+            "deleted_by_user_id": str(current_user.id),
+        },
+    )
     return JSONResponse({"status": "deleted", "id": result_id})
 
 
 def _analyze_path(csv_path: Path) -> tuple[dict[str, Any], AnalysisContext] | tuple[None, None]:
-    """Dosya yolundan pipeline calistir (senkron)."""
+    """Run the pipeline synchronously for a file path."""
+
     try:
         pipeline = build_pipeline(csv_path)
         ctx = AnalysisContext()
@@ -412,26 +807,77 @@ def _analyze_path(csv_path: Path) -> tuple[dict[str, Any], AnalysisContext] | tu
     return None, None
 
 
-@app.on_event("startup")
-async def load_demo_data():
-    """Sunucu basladiginda demo verilerini yukle."""
-    demo_files = [
-        Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri\nist_numisheet\C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv"),
-        Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri\nist_numisheet\C00FeDP1180Numisheet2020R01T1.046W17.93-S-Stress-Strain.csv"),
-        Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri\nist_numisheet\C00FeDP980Numisheet2020R01T1.424W17.93-S-Stress-Strain.csv"),
+def _demo_data_enabled() -> bool:
+    """Return whether demo seeding is explicitly enabled."""
+
+    return os.getenv("CURVEINTEL_LOAD_DEMO_DATA", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_demo_files() -> list[Path]:
+    """Resolve demo files from the configured directory."""
+
+    demo_root = os.getenv("CURVEINTEL_DEMO_DATA_DIR", "").strip()
+    if not demo_root:
+        print("[STARTUP] Demo seeding requested but CURVEINTEL_DEMO_DATA_DIR is not set.")
+        return []
+
+    base = Path(demo_root)
+    return [
+        base / "C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv",
+        base / "C00FeDP1180Numisheet2020R01T1.046W17.93-S-Stress-Strain.csv",
+        base / "C00FeDP980Numisheet2020R01T1.424W17.93-S-Stress-Strain.csv",
     ]
-    print("[STARTUP] Demo verileri yukleniyor...")
-    for f in demo_files:
-        if f.exists():
-            result, ctx = _analyze_path(f)
-            if result and ctx:
-                analysis_results.append(result)
-                analysis_contexts[result["id"]] = ctx
-                print(f"  [OK] {f.name}: UTS={result['properties']['ultimate_tensile_mpa']} MPa")
-    print(f"[STARTUP] {len(analysis_results)} analiz hazir.")
+
+
+async def load_demo_data() -> None:
+    """Seed demo data only when explicitly enabled."""
+
+    if not _demo_data_enabled():
+        return
+
+    demo_files = _resolve_demo_files()
+    if not demo_files:
+        return
+
+    db = _open_db_session()
+    seeded_count = 0
+    try:
+        print("[STARTUP] Loading explicit demo data...")
+        for demo_file in demo_files:
+            if not demo_file.exists():
+                continue
+
+            result, ctx = _analyze_path(demo_file)
+            if not result or ctx is None:
+                continue
+
+            persisted = persist_analysis_result(
+                db,
+                ctx,
+                demo_file.name,
+                source_file_path=demo_file,
+                analysis_id=result["id"],
+            )
+            payload = persisted.analysis_payload
+            seeded_count += 1
+            append_audit_event(
+                db,
+                None,
+                action=AuditAction.SEED,
+                entity_type=AuditEntityType.ANALYSIS_RESULT,
+                entity_id=str(persisted.id),
+                after_snapshot=payload,
+                event_meta={"seed_kind": "demo_data"},
+            )
+            print(
+                f"  [OK] {demo_file.name}: UTS={payload['properties']['ultimate_tensile_mpa']} MPa"
+            )
+        print(f"[STARTUP] {seeded_count} demo analyses ready.")
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
 
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)

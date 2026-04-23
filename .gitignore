@@ -45,6 +45,11 @@ uploads/*.pdf
 
 # Test artifacts
 tests/*.png
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
 
 # Byte-compiled
 *.pyc

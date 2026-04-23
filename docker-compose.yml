@@ -1,7 +1,28 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: curveintel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-curveintel}
+      POSTGRES_USER: ${POSTGRES_USER:-curveintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-curveintel}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-curveintel} -d ${POSTGRES_DB:-curveintel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   curveintel:
     build: .
     container_name: curveintel
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
@@ -10,3 +31,24 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://curveintel:curveintel@postgres:5432/curveintel}
+      - DB_ECHO=${DB_ECHO:-false}
+      - DB_POOL_PRE_PING=true
+      - CURVEINTEL_ENV=${CURVEINTEL_ENV:-development}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-in-real-environments}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - AUTH_TOKEN_COOKIE_NAME=${AUTH_TOKEN_COOKIE_NAME:-curveintel_access_token}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - AUTH_BOOTSTRAP_ADMIN_EMAIL=${AUTH_BOOTSTRAP_ADMIN_EMAIL:-admin@curveintel.local}
+      - AUTH_BOOTSTRAP_ADMIN_FULL_NAME=${AUTH_BOOTSTRAP_ADMIN_FULL_NAME:-CurveIntel Admin}
+      - AUTH_BOOTSTRAP_ADMIN_PASSWORD=${AUTH_BOOTSTRAP_ADMIN_PASSWORD:-}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}
+      - CORS_ALLOW_METHODS=${CORS_ALLOW_METHODS:-GET,POST,PUT,PATCH,DELETE,OPTIONS}
+      - CORS_ALLOW_HEADERS=${CORS_ALLOW_HEADERS:-Authorization,Content-Type,X-Request-ID}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS:-true}
+      - CURVEINTEL_LOAD_DEMO_DATA=${CURVEINTEL_LOAD_DEMO_DATA:-false}
+      - CURVEINTEL_DEMO_DATA_DIR=${CURVEINTEL_DEMO_DATA_DIR:-}
+
+volumes:
+  postgres_data:

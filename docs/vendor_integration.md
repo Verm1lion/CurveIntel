@@ -2,125 +2,136 @@
 
 ## Overview
 
-CurveIntel supports multiple test machine vendors through a **profile-based** CSV parsing system. Each vendor has a profile that defines column mappings, encoding, separators, and unit conventions.
+CurveIntel uses a profile-based CSV ingestion layer. A vendor profile describes how a machine export can be recognized and how its raw columns map to CurveIntel's canonical fields.
 
-## Currently Supported Vendors
+The implementation lives in [src/pipeline/vendor_profiles.py](../src/pipeline/vendor_profiles.py).
 
-| # | Vendor | Software | Columns | Encoding | Separator |
-|---|--------|----------|---------|----------|-----------|
-| 1 | ZwickRoell | testXpert II/III | 25 (DE/EN) | CP1252 | `;` |
-| 2 | Instron | Bluehill Universal | 34 (multi-lang) | UTF-8/16 | `,` |
-| 3 | Shimadzu | Trapezium X | 31 (JP/EN) | Shift-JIS | `,` |
-| 4 | MTS | TestSuite | 9 | UTF-8 | `tab` |
-| 5 | Tinius Olsen | Horizon | 12 | CP1252 | `,` |
-| 6 | DEVOTRANS | CKS-III | 13 (TR) | CP1254 | `;` |
-| 7 | Hegewald & Peschke | LabMaster | 14 (DE) | CP1252 | `;` |
-| 8 | NIST | Numisheet 2020 | 5 | UTF-8 | `,` |
+## Runtime Model
 
-## How Vendor Detection Works
+Each profile is a `VendorProfile` dataclass with these fields:
 
-1. **DataLoader** reads the first 50 lines of the CSV with encoding auto-detection
-2. **SchemaDetector** compares column headers against all registered vendor profiles
-3. The profile with the highest match score wins
-4. If no profile matches above threshold → **Generic CSV** fallback with auto-detection
+```python
+@dataclass
+class VendorProfile:
+    name: str
+    fingerprint_regex: str
+    column_map: dict[str, str]
+    default_encoding: str = "utf-8"
+    default_decimal: str = "."
+    default_separator: str = ","
+    time_column: str | None = None
+    notes: str = ""
+```
+
+Canonical target columns used by the ingestion pipeline:
+
+- `force`
+- `displacement`
+- `stress`
+- `strain`
+- `time`
+- `extensometer`
+
+## Supported Profiles
+
+| Vendor | Profile | Encoding | Separator | Notes |
+| --- | --- | --- | --- | --- |
+| ZwickRoell | testXpert II/III | `windows-1252` | `;` | German and English exports |
+| Instron | Bluehill Universal | `utf-8` / `utf-16` | `,` | Multi-language exports |
+| Shimadzu | Trapezium X | `shift_jis` | `,` | Japanese and English headers |
+| MTS | TestSuite | `utf-8` | `tab` | Axial force/displacement naming |
+| Tinius Olsen | Horizon | `windows-1252` | `,` | Standard English exports |
+| DEVOTRANS | CKS-III | `windows-1254` | `;` | Turkish locale |
+| Hegewald & Peschke | LabMaster | `windows-1252` | `;` | German locale |
+| NIST | Numisheet 2020 | `utf-8` | `,` | Reference dataset |
+
+## Detection Flow
+
+1. `detect_vendor(filepath, max_lines=40)` reads the first lines of the file using the encoding fallback chain.
+2. Each profile's `fingerprint_regex` is scored against that header block.
+3. The best-scoring profile from `ALL_PROFILES` is selected.
+4. `SchemaDetector` applies the chosen profile's `column_map`.
+5. If no profile matches, CurveIntel falls back to generic column auto-detection.
+
+Encoding fallback order:
+
+1. `utf-8-sig`
+2. `utf-16`
+3. `shift_jis`
+4. `windows-1252`
+5. `windows-1254`
+6. `latin-1`
 
 ## Adding a New Vendor Profile
 
-### Step 1: Collect Sample Data
+1. Collect at least one representative export file with full headers and enough data rows to validate the mapping.
+2. Add a new `VendorProfile` constant in `src/pipeline/vendor_profiles.py`.
+3. Add the profile to `ALL_PROFILES`.
 
-You need at least one complete CSV file from the target machine, including:
-- All header rows (some machines have multi-line headers)
-- At least 100 data rows
-- Known encoding and separator
+Recommended insertion rule:
 
-### Step 2: Create the Profile
+- Put more specific formats before more generic ones.
+- Keep profile order deterministic because detection picks the highest-scoring match from that ordered set.
 
-Edit `src/pipeline/vendor_profiles.py` and add a new entry:
+Example:
 
 ```python
-VENDOR_PROFILES["your_vendor"] = VendorProfile(
-    name="YourVendor ModelName",
-    # Column name mappings (case-insensitive regex patterns)
-    force_columns=["Force", "Kraft", "Load"],      # kN or N
-    displacement_columns=["Displacement", "Weg"],   # mm
-    stress_columns=["Stress", "Spannung"],           # MPa
-    strain_columns=["Strain", "Dehnung"],            # mm/mm or %
-    time_columns=["Time", "Zeit"],                   # s
-    # File format
-    encoding="utf-8",
-    separator=",",
-    decimal=".",
-    skip_rows=0,           # Header rows to skip before column names
-    # Units (for automatic conversion)
-    force_unit="kN",       # kN, N, lbf
-    displacement_unit="mm", # mm, in
-    stress_unit="MPa",     # MPa, GPa, psi, ksi
-    strain_unit="mm/mm",   # mm/mm, %, in/in
+MY_VENDOR = VendorProfile(
+    name="My Vendor Suite",
+    fingerprint_regex=r"(?i)(?:MyVendor|MyVendorSuite|Specimen Name)",
+    column_map={
+        "Load": "force",
+        "Extension": "displacement",
+        "Stress": "stress",
+        "Strain": "strain",
+        "Time": "time",
+    },
+    default_encoding="utf-8",
+    default_decimal=".",
+    default_separator=",",
+    time_column="Time",
+    notes="Example profile.",
 )
+
+ALL_PROFILES.insert(0, MY_VENDOR)
 ```
 
-### Step 3: Test the Profile
+4. Validate the profile against a known sample file.
 
 ```bash
-# Test with your sample CSV
-python -c "
-from batch_analyze import analyze_single
-from pathlib import Path
-ctx = analyze_single(Path('your_sample.csv'), Path('reports/'))
-print(f'Vendor: {ctx.vendor_detected}')
-print(f'Rm = {ctx.properties.ultimate_tensile_mpa:.1f} MPa')
-"
+python -c "from pathlib import Path; from src.pipeline.vendor_profiles import detect_vendor; print(detect_vendor(Path('sample.csv')).name)"
 ```
 
-### Step 4: Add to Test Suite
-
-Create a test in `tests/` that validates your vendor profile against known expected values.
-
-### Step 5: Submit
-
-1. Open a [Vendor Support Request](https://github.com/Verm1lion/CurveIntel/issues/new?template=vendor_support.yml) issue
-2. Submit a PR with:
-   - Updated `vendor_profiles.py`
-   - Sample CSV in `examples/` (anonymized)
-   - Test file
-   - Updated vendor table in `README.md`
-
-## Column Mapping Details
-
-CurveIntel uses **regex-based multilingual column matching** supporting:
-
-| Language | Force | Stress | Strain | Displacement |
-|----------|-------|--------|--------|-------------|
-| English | Force, Load | Stress | Strain | Displacement, Extension |
-| German | Kraft | Spannung | Dehnung | Weg, Traverse |
-| Japanese | 荷重 | 応力 | ひずみ | 変位 |
-| Turkish | Kuvvet, Yük | Gerilme | Uzama | Deplasman |
-| French | Force, Charge | Contrainte | Déformation | Déplacement |
-| Spanish | Fuerza, Carga | Tensión | Deformación | Desplazamiento |
-
-**Total: 143 column mappings across 6 languages.**
-
-## Encoding Detection Chain
-
-For files with unknown encoding, CurveIntel tries:
-
-1. UTF-8 (with BOM detection)
-2. UTF-16 (LE/BE)
-3. Shift-JIS (Japanese machines)
-4. CP1252 (Western European — Zwick, Tinius Olsen)
-5. CP1254 (Turkish — DEVOTRANS)
-6. Latin-1 (fallback)
+5. Add or extend automated coverage in `tests/` for the new format.
+6. Update the vendor tables in this guide and in `README.md`.
 
 ## Troubleshooting
 
-### "No vendor profile matched"
+### No profile matched
 
-- Check if your CSV has unusual header rows (metadata before column names)
-- Try setting `skip_rows` in the profile
-- Verify encoding is correctly detected (open in a hex editor if needed)
+- Inspect the first 40 header lines of the export file.
+- Check whether the file uses an unexpected encoding or separator.
+- Confirm the export includes stable header text that can be fingerprinted.
+- Verify that generic fallback still identifies canonical columns.
 
-### Wrong units detected
+### Wrong columns were mapped
 
-- Verify `force_unit` and `stress_unit` in the profile
-- Check if the machine exports in N vs kN, or % vs mm/mm
-- CurveIntel converts everything to MPa (stress) and mm/mm (strain) internally
+- Review `column_map` for locale variants and spelling changes.
+- Add aliases rather than replacing existing ones when supporting new export variants.
+- Make sure the target values remain canonical keys such as `force` or `strain`.
+
+### Wrong decimal or separator behavior
+
+- Set `default_decimal` and `default_separator` to match the vendor export.
+- Keep locale-specific defaults inside the vendor profile rather than in the generic detector.
+
+### Encoding issues
+
+- Prefer the narrowest known encoding for the vendor.
+- If the vendor exports multiple encodings, keep the broadest safe default in the profile and rely on the fallback chain for alternate variants.
+
+## Related Files
+
+- [src/pipeline/vendor_profiles.py](../src/pipeline/vendor_profiles.py)
+- [src/pipeline/ingestion.py](../src/pipeline/ingestion.py)
+- [README.md](../README.md)

@@ -136,18 +136,27 @@
             <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="/guide">Guide</a>
         </div>
     </div>
-    <div class="flex items-center gap-6">
-
+    <div class="flex items-center gap-4">
+        {% if can_upload %}
         <button onclick="showUploadModal()" class="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant/20 text-primary hover:bg-primary/5 transition-colors text-sm font-medium">
             <span class="material-symbols-outlined text-sm">upload</span> Upload Data
         </button>
-        <div class="flex items-center gap-4 text-on-surface-variant">
-            <button class="hover:text-primary transition-colors relative">
-                <span class="material-symbols-outlined">notifications</span>
-                {% if has_data %}<span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full"></span>{% endif %}
-            </button>
-            <button class="hover:text-primary transition-colors"><span class="material-symbols-outlined">settings</span></button>
+        {% endif %}
+        {% if can_manage_results and audit_logs %}
+        <a href="/api/audit-logs" target="_blank" class="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-xs font-medium">
+            <span class="material-symbols-outlined text-sm">shield_lock</span> Audit Trail
+        </a>
+        {% endif %}
+        <div class="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant/15">
+            <span class="material-symbols-outlined text-primary text-[18px]">verified_user</span>
+            <div class="leading-tight">
+                <p class="text-sm font-medium text-on-surface">{{ current_user.full_name }}</p>
+                <p class="text-[10px] text-on-surface-variant">{{ current_user.email }} | {{ current_user.role|upper }}</p>
+            </div>
         </div>
+        <button onclick="logout()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors text-sm font-medium">
+            <span class="material-symbols-outlined text-sm">logout</span> Logout
+        </button>
     </div>
 </nav>
 
@@ -233,10 +242,18 @@
 <div class="glass-panel rounded-2xl p-16 text-center">
     <span class="material-symbols-outlined text-6xl text-primary/30 mb-4 block">science</span>
     <h2 class="text-xl font-bold text-on-surface mb-2">No Analysis Data</h2>
-    <p class="text-on-surface-variant mb-6">Upload a CSV file to start analyzing stress-strain data</p>
+    <p class="text-on-surface-variant mb-6">
+        {% if can_upload %}
+        Upload a CSV file to start analyzing stress-strain data.
+        {% else %}
+        Persisted results will appear here. Your current role is read-only.
+        {% endif %}
+    </p>
+    {% if can_upload %}
     <button onclick="showUploadModal()" class="px-6 py-2.5 rounded-lg bg-primary text-on-primary font-medium hover:bg-primary/90 transition-colors">
         <span class="material-symbols-outlined text-sm align-middle mr-1">upload</span> Upload CSV
     </button>
+    {% endif %}
 </div>
 {% else %}
 
@@ -515,15 +532,17 @@
 <div class="glass-panel rounded-xl p-0 overflow-hidden mt-8 fade-up">
     <div class="p-6 border-b border-outline-variant/15 flex justify-between items-center">
         <div>
-            <h2 class="text-lg font-semibold text-on-surface">Batch Results Context</h2>
-            <p class="text-xs text-on-surface-variant mt-1">{{ batch_results|length }} tests in current session</p>
+            <h2 class="text-lg font-semibold text-on-surface">Persisted Analysis Archive</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ batch_results|length }} recent persisted results</p>
         </div>
+        {% if can_manage_results %}
         <div class="flex items-center gap-2">
-            <button onclick="if(confirm('Clear all results?')) fetch('/api/results/clear',{method:'DELETE'}).then(()=>location.reload())" 
+            <button onclick="clearResults()" 
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-error/20 text-error hover:bg-error/5 transition-colors text-xs font-medium">
                 <span class="material-symbols-outlined text-[14px]">delete_sweep</span> Clear All
             </button>
         </div>
+        {% endif %}
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse text-sm">
@@ -536,13 +555,22 @@
                     <th class="py-3 px-6 font-medium">Score</th>
                     <th class="py-3 px-6 font-medium">Grade</th>
                     <th class="py-3 px-4 font-medium text-center">Report</th>
+                    {% if can_manage_results %}
                     <th class="py-3 px-3 font-medium w-10"></th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
                 {% for r in batch_results %}
-                <tr class="hover:bg-surface-container/20 transition-colors group">
-                    <td class="py-3 px-6 font-mono text-xs text-on-surface cursor-pointer" onclick="window.location='/?id={{ r.id }}'">{{ r.filename }}</td>
+                <tr onclick="window.location='/?id={{ r.id }}'" class="hover:bg-surface-container/20 transition-colors group cursor-pointer {% if selected_result_id == r.id %}bg-primary/10{% endif %}">
+                    <td class="py-3 px-6 font-mono text-xs text-on-surface">
+                        <div class="flex items-center gap-2">
+                            <span>{{ r.filename }}</span>
+                            {% if selected_result_id == r.id %}
+                            <span class="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">Selected</span>
+                            {% endif %}
+                        </div>
+                    </td>
                     <td class="py-3 px-6 text-on-surface-variant">{{ r.material_type }}</td>
                     <td class="py-3 px-6 text-on-surface">{{ r.properties.ultimate_tensile_mpa or '---' }}</td>
                     <td class="py-3 px-6 text-on-surface">{{ r.properties.yield_strength_mpa or '---' }}</td>
@@ -563,12 +591,72 @@
                             <span class="material-symbols-outlined text-[14px]">picture_as_pdf</span> PDF
                         </a>
                     </td>
+                    {% if can_manage_results %}
                     <td class="py-3 px-3">
-                        <button onclick="event.stopPropagation(); fetch('/api/results/{{ r.id }}',{method:'DELETE'}).then(()=>location.reload())" 
+                        <button onclick="event.stopPropagation(); deleteResult('{{ r.id }}')" 
                             class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-error/10 text-on-surface-variant hover:text-error">
                             <span class="material-symbols-outlined text-[16px]">close</span>
                         </button>
                     </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if can_manage_results and audit_logs|length > 0 %}
+<div class="glass-panel rounded-xl p-0 overflow-hidden mt-8 fade-up">
+    <div class="p-6 border-b border-outline-variant/15 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-on-surface">Audit Trail</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ audit_logs|length }} latest append-only events</p>
+        </div>
+        <a href="/api/audit-logs" target="_blank" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-xs font-medium">
+            <span class="material-symbols-outlined text-[14px]">open_in_new</span> Open JSON
+        </a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+            <thead>
+                <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                    <th class="py-3 px-6 font-medium">When</th>
+                    <th class="py-3 px-6 font-medium">Actor</th>
+                    <th class="py-3 px-6 font-medium">Action</th>
+                    <th class="py-3 px-6 font-medium">Target</th>
+                    <th class="py-3 px-6 font-medium">Status</th>
+                    <th class="py-3 px-6 font-medium">Path</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/5">
+                {% for log in audit_logs %}
+                <tr class="hover:bg-surface-container/20 transition-colors">
+                    <td class="py-3 px-6 text-xs font-mono text-on-surface">{{ log.occurred_at[:19] | replace('T', ' ') }}</td>
+                    <td class="py-3 px-6 text-on-surface-variant">
+                        {% if log.actor %}
+                        <div class="flex flex-col">
+                            <span class="text-on-surface text-xs">{{ log.actor.full_name }}</span>
+                            <span class="text-[10px]">{{ log.actor.email }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs">system</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-6">
+                        <span class="text-[10px] font-semibold uppercase px-2 py-1 rounded border border-outline-variant/15 bg-surface-container">{{ log.action }}</span>
+                    </td>
+                    <td class="py-3 px-6 text-xs text-on-surface-variant">
+                        <div class="flex flex-col">
+                            <span class="text-on-surface">{{ log.entity_type }}</span>
+                            <span class="font-mono">{{ log.entity_id[:24] }}{% if log.entity_id|length > 24 %}...{% endif %}</span>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6">
+                        <span class="text-[10px] font-semibold uppercase {% if log.status == 'success' %}text-tertiary-fixed{% else %}text-error{% endif %}">{{ log.status }}</span>
+                    </td>
+                    <td class="py-3 px-6 text-xs text-on-surface-variant font-mono">{{ log.event_meta.path or '-' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -588,13 +676,12 @@
             <span class="material-symbols-outlined text-on-surface-variant text-[18px] mt-0.5">gavel</span>
             <div>
                 <p class="text-[10px] text-on-surface-variant leading-relaxed">
-                    <strong>YASAL NOT:</strong> Bu rapordaki hesaplamalar ISO 6892-1:2019 metodolojisine göre yapılmıştır.
-                    Bu yazılım herhangi bir akreditasyon kuruluşu (TÜRKAK, EA, ILAC vb.) tarafından akredite edilmemiş veya sertifikalandırılmamıştır.
-                    Akredite test raporu ancak ISO/IEC 17025 kapsamında akredite edilmiş bir laboratuvar tarafından düzenlenebilir.
-                </p>
-                <p class="text-[10px] text-on-surface-variant/60 leading-relaxed mt-1">
-                    <strong>LEGAL NOTICE:</strong> Calculations performed according to ISO 6892-1:2019. This software is NOT accredited or certified by any accreditation body.
-                    An accredited test report can only be issued by a laboratory accredited to ISO/IEC 17025.
+                    <strong>NOTICE / YASAL NOT:</strong> Bu rapordaki hesaplamalar ISO 6892-1:2019
+                    metodolojisini izler / Calculations in this report follow ISO 6892-1:2019.
+                    Yazilim herhangi bir akreditasyon kurumu tarafindan akredite edilmemistir /
+                    The software is not accredited by any accreditation body. Akredite test raporu
+                    yalnizca ISO/IEC 17025 kapsaminda akredite bir laboratuvar tarafindan duzenlenebilir /
+                    An accredited test report can only be issued by an ISO/IEC 17025 accredited laboratory.
                 </p>
             </div>
         </div>
@@ -603,12 +690,45 @@
 {% endif %}
 
 <!-- FAB -->
+{% if can_upload %}
 <button onclick="showUploadModal()" class="fixed bottom-8 right-8 w-14 h-14 rounded-xl flex items-center justify-center ambient-shadow btn-primary transition-all z-50" style="background: linear-gradient(135deg, #afc6ff, #528dff);">
     <span class="material-symbols-outlined text-2xl font-bold text-[#00275f]">add</span>
 </button>
+{% endif %}
 
 <script>
 // ── Upload Modal ──
+async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+}
+
+async function deleteResult(resultId) {
+    if (!confirm('Delete this persisted result?')) return;
+
+    const response = await fetch(`/api/results/${resultId}`, { method: 'DELETE' });
+    if (response.ok) {
+        window.location.reload();
+        return;
+    }
+
+    const payload = await response.json().catch(() => ({ error: 'Delete failed.' }));
+    alert(payload.error || payload.detail || 'Delete failed.');
+}
+
+async function clearResults() {
+    if (!confirm('Clear all persisted results?')) return;
+
+    const response = await fetch('/api/results/clear', { method: 'DELETE' });
+    if (response.ok) {
+        window.location.reload();
+        return;
+    }
+
+    const payload = await response.json().catch(() => ({ error: 'Clear failed.' }));
+    alert(payload.error || payload.detail || 'Clear failed.');
+}
+
 function showUploadModal() {
     document.getElementById('uploadOverlay').classList.add('active');
 }

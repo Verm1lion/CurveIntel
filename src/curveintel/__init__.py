@@ -1,0 +1,1 @@
+"""CurveIntel application package extensions."""
