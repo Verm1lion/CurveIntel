@@ -18,6 +18,7 @@ Batch Analiz:
   - Her biri icin pipeline calistirir
   - Ozet tablo + bireysel raporlar uretir
 """
+
 from __future__ import annotations
 
 import json
@@ -27,13 +28,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 
-from src.pipeline.base import AnalysisContext, Pipeline
+from src.pipeline.base import AnalysisContext
 
 # ReportLab imports
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm, mm
@@ -49,28 +49,40 @@ from reportlab.platypus import (
 
 
 # ── Renk paleti ──
-COLOR_PRIMARY = colors.HexColor("#1a237e")      # Koyu lacivert
-COLOR_SECONDARY = colors.HexColor("#283593")     # Lacivert
-COLOR_ACCENT = colors.HexColor("#42a5f5")        # Acik mavi
-COLOR_SUCCESS = colors.HexColor("#2e7d32")       # Yesil
-COLOR_WARNING = colors.HexColor("#f57f17")       # Turuncu
-COLOR_DANGER = colors.HexColor("#c62828")        # Kirmizi
-COLOR_LIGHT_BG = colors.HexColor("#e8eaf6")      # Acik gri-mavi
+COLOR_PRIMARY = colors.HexColor("#1a237e")  # Koyu lacivert
+COLOR_SECONDARY = colors.HexColor("#283593")  # Lacivert
+COLOR_ACCENT = colors.HexColor("#42a5f5")  # Acik mavi
+COLOR_SUCCESS = colors.HexColor("#2e7d32")  # Yesil
+COLOR_WARNING = colors.HexColor("#f57f17")  # Turuncu
+COLOR_DANGER = colors.HexColor("#c62828")  # Kirmizi
+COLOR_LIGHT_BG = colors.HexColor("#e8eaf6")  # Acik gri-mavi
 COLOR_TABLE_HEADER = colors.HexColor("#1565c0")  # Tablo baslik
-COLOR_TABLE_ALT = colors.HexColor("#e3f2fd")     # Tablo alternatif satir
+COLOR_TABLE_ALT = colors.HexColor("#e3f2fd")  # Tablo alternatif satir
 
 
 # ── Turkce karakter donusumu (Helvetica desteklemiyor) ──
-_TR_MAP = str.maketrans({
-    '\u011f': 'g', '\u011e': 'G',  # ğ Ğ
-    '\u00fc': 'u', '\u00dc': 'U',  # ü Ü
-    '\u015f': 's', '\u015e': 'S',  # ş Ş
-    '\u0131': 'i', '\u0130': 'I',  # ı İ
-    '\u00f6': 'o', '\u00d6': 'O',  # ö Ö
-    '\u00e7': 'c', '\u00c7': 'C',  # ç Ç
-    '\u2014': '--', '\u2013': '-',  # em/en dash
-    '\u2019': "'", '\u201c': '"', '\u201d': '"',
-})
+_TR_MAP = str.maketrans(
+    {
+        "\u011f": "g",
+        "\u011e": "G",  # ğ Ğ
+        "\u00fc": "u",
+        "\u00dc": "U",  # ü Ü
+        "\u015f": "s",
+        "\u015e": "S",  # ş Ş
+        "\u0131": "i",
+        "\u0130": "I",  # ı İ
+        "\u00f6": "o",
+        "\u00d6": "O",  # ö Ö
+        "\u00e7": "c",
+        "\u00c7": "C",  # ç Ç
+        "\u2014": "--",
+        "\u2013": "-",  # em/en dash
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+    }
+)
+
 
 def _s(text: str) -> str:
     """Sanitize text for Helvetica: replace Turkish chars with ASCII."""
@@ -84,46 +96,76 @@ def _build_styles() -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()
     return {
         "title": ParagraphStyle(
-            "CITitle", parent=base["Title"],
-            fontSize=22, textColor=COLOR_PRIMARY, spaceAfter=6 * mm,
+            "CITitle",
+            parent=base["Title"],
+            fontSize=22,
+            textColor=COLOR_PRIMARY,
+            spaceAfter=6 * mm,
             fontName="Helvetica-Bold",
         ),
         "subtitle": ParagraphStyle(
-            "CISubtitle", parent=base["Normal"],
-            fontSize=11, textColor=COLOR_SECONDARY, spaceAfter=3 * mm,
+            "CISubtitle",
+            parent=base["Normal"],
+            fontSize=11,
+            textColor=COLOR_SECONDARY,
+            spaceAfter=3 * mm,
             fontName="Helvetica",
         ),
         "heading": ParagraphStyle(
-            "CIHeading", parent=base["Heading2"],
-            fontSize=14, textColor=COLOR_PRIMARY, spaceBefore=8 * mm,
-            spaceAfter=4 * mm, fontName="Helvetica-Bold",
-            borderWidth=1, borderColor=COLOR_ACCENT, borderPadding=3,
+            "CIHeading",
+            parent=base["Heading2"],
+            fontSize=14,
+            textColor=COLOR_PRIMARY,
+            spaceBefore=8 * mm,
+            spaceAfter=4 * mm,
+            fontName="Helvetica-Bold",
+            borderWidth=1,
+            borderColor=COLOR_ACCENT,
+            borderPadding=3,
         ),
         "body": ParagraphStyle(
-            "CIBody", parent=base["Normal"],
-            fontSize=10, leading=14, fontName="Helvetica",
+            "CIBody",
+            parent=base["Normal"],
+            fontSize=10,
+            leading=14,
+            fontName="Helvetica",
         ),
         "small": ParagraphStyle(
-            "CISmall", parent=base["Normal"],
-            fontSize=8, leading=10, textColor=colors.gray,
+            "CISmall",
+            parent=base["Normal"],
+            fontSize=8,
+            leading=10,
+            textColor=colors.gray,
             fontName="Helvetica",
         ),
         "value": ParagraphStyle(
-            "CIValue", parent=base["Normal"],
-            fontSize=11, fontName="Helvetica-Bold", alignment=TA_RIGHT,
+            "CIValue",
+            parent=base["Normal"],
+            fontSize=11,
+            fontName="Helvetica-Bold",
+            alignment=TA_RIGHT,
         ),
         "label": ParagraphStyle(
-            "CILabel", parent=base["Normal"],
-            fontSize=10, fontName="Helvetica", textColor=COLOR_SECONDARY,
+            "CILabel",
+            parent=base["Normal"],
+            fontSize=10,
+            fontName="Helvetica",
+            textColor=COLOR_SECONDARY,
         ),
         "pass": ParagraphStyle(
-            "CIPass", parent=base["Normal"],
-            fontSize=12, fontName="Helvetica-Bold", textColor=COLOR_SUCCESS,
+            "CIPass",
+            parent=base["Normal"],
+            fontSize=12,
+            fontName="Helvetica-Bold",
+            textColor=COLOR_SUCCESS,
             alignment=TA_CENTER,
         ),
         "fail": ParagraphStyle(
-            "CIFail", parent=base["Normal"],
-            fontSize=12, fontName="Helvetica-Bold", textColor=COLOR_DANGER,
+            "CIFail",
+            parent=base["Normal"],
+            fontSize=12,
+            fontName="Helvetica-Bold",
+            textColor=COLOR_DANGER,
             alignment=TA_CENTER,
         ),
     }
@@ -192,6 +234,7 @@ def generate_plot_image(ctx: AnalysisContext, title: str = "") -> BytesIO | None
     """Stress-strain egrisi grafigini BytesIO olarak uret."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -203,20 +246,33 @@ def generate_plot_image(ctx: AnalysisContext, title: str = "") -> BytesIO | None
         # Yield noktasi
         ys = ctx.extra.get("yield_strain")
         if ys and p.yield_strength_mpa:
-            ax.plot(ys, p.yield_strength_mpa, "go", ms=9,
-                    label=f"Yield = {p.yield_strength_mpa:.1f} MPa", zorder=5)
+            ax.plot(
+                ys,
+                p.yield_strength_mpa,
+                "go",
+                ms=9,
+                label=f"Yield = {p.yield_strength_mpa:.1f} MPa",
+                zorder=5,
+            )
 
         # UTS noktasi
         uts_idx = ctx.extra.get("uts_idx")
         if uts_idx is not None and p.ultimate_tensile_mpa:
-            ax.plot(ctx.strain[uts_idx], p.ultimate_tensile_mpa, "r^", ms=9,
-                    label=f"UTS = {p.ultimate_tensile_mpa:.1f} MPa", zorder=5)
+            ax.plot(
+                ctx.strain[uts_idx],
+                p.ultimate_tensile_mpa,
+                "r^",
+                ms=9,
+                label=f"UTS = {p.ultimate_tensile_mpa:.1f} MPa",
+                zorder=5,
+            )
 
         # Necking
         neck_idx = ctx.extra.get("necking_idx")
         if neck_idx:
-            ax.axvline(ctx.strain[neck_idx], color="orange", ls="--", alpha=0.7,
-                       label="Necking baslangici")
+            ax.axvline(
+                ctx.strain[neck_idx], color="orange", ls="--", alpha=0.7, label="Necking baslangici"
+            )
 
         ax.set_xlabel("Strain (mm/mm)", fontsize=11)
         ax.set_ylabel("Stress (MPa)", fontsize=11)
@@ -286,6 +342,7 @@ def generate_pdf_report(
 
     # Test bilgileri tablosu
     import uuid as _uuid
+
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     report_uuid = str(_uuid.uuid4())[:12].upper()
     specimen_id = ctx.metadata.specimen_id or ctx.metadata.source_file or "---"
@@ -318,16 +375,20 @@ def generate_pdf_report(
     ]
 
     info_table = Table(info_data, colWidths=[5.5 * cm, 10 * cm])
-    info_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("TEXTCOLOR", (0, 0), (0, -1), COLOR_SECONDARY),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.lightgrey),
-        ("LINEBELOW", (0, -1), (-1, -1), 1, COLOR_ACCENT),
-    ]))
+    info_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TEXTCOLOR", (0, 0), (0, -1), COLOR_SECONDARY),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.lightgrey),
+                ("LINEBELOW", (0, -1), (-1, -1), 1, COLOR_ACCENT),
+            ]
+        )
+    )
     elements.append(info_table)
 
     # Kalite skoru
@@ -336,18 +397,26 @@ def generate_pdf_report(
 
     score_color = COLOR_SUCCESS if score >= 60 else (COLOR_WARNING if score >= 40 else COLOR_DANGER)
     score_style = ParagraphStyle(
-        "ScoreStyle", fontSize=16, fontName="Helvetica-Bold",
-        textColor=score_color, alignment=TA_CENTER,
+        "ScoreStyle",
+        fontSize=16,
+        fontName="Helvetica-Bold",
+        textColor=score_color,
+        alignment=TA_CENTER,
     )
     elements.append(Paragraph(f"Kalite Skoru: {score:.0f}/100 — {grade}", score_style))
 
     # ── ISO 17025 Yasal Not / Disclaimer (TR + EN) ──
     elements.append(Spacer(1, 1 * cm))
     disclaimer_style = ParagraphStyle(
-        "Disclaimer", fontSize=7.5, leading=10,
-        fontName="Helvetica", textColor=colors.HexColor("#616161"),
-        spaceBefore=2 * mm, spaceAfter=2 * mm,
-        borderWidth=0.5, borderColor=colors.HexColor("#bdbdbd"),
+        "Disclaimer",
+        fontSize=7.5,
+        leading=10,
+        fontName="Helvetica",
+        textColor=colors.HexColor("#616161"),
+        spaceBefore=2 * mm,
+        spaceAfter=2 * mm,
+        borderWidth=0.5,
+        borderColor=colors.HexColor("#bdbdbd"),
         borderPadding=6,
     )
     disclaimer_tr = (
@@ -370,15 +439,21 @@ def generate_pdf_report(
 
     # Cl. 7.8.2.1: "Sonuclar yalnizca deney edilen numuneye aittir" beyani
     specimen_stmt = ParagraphStyle(
-        "SpecimenStmt", fontSize=8, fontName="Helvetica-BoldOblique",
-        textColor=COLOR_SECONDARY, alignment=TA_CENTER,
-        spaceBefore=4 * mm, spaceAfter=2 * mm,
+        "SpecimenStmt",
+        fontSize=8,
+        fontName="Helvetica-BoldOblique",
+        textColor=COLOR_SECONDARY,
+        alignment=TA_CENTER,
+        spaceBefore=4 * mm,
+        spaceAfter=2 * mm,
     )
-    elements.append(Paragraph(
-        "Bu rapordaki sonuclar yalnizca deney edilen numuneye aittir. / "
-        "The results in this report relate only to the items tested.",
-        specimen_stmt,
-    ))
+    elements.append(
+        Paragraph(
+            "Bu rapordaki sonuclar yalnizca deney edilen numuneye aittir. / "
+            "The results in this report relate only to the items tested.",
+            specimen_stmt,
+        )
+    )
 
     elements.append(PageBreak())
 
@@ -393,64 +468,101 @@ def generate_pdf_report(
         ["Ozellik / Property", "Deger / Value", "Birim / Unit", "ISO Yontem / Method"],
     ]
 
-    wrap_style = ParagraphStyle("Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black)
+    wrap_style = ParagraphStyle(
+        "Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black
+    )
 
     def _add_prop(name, value, unit, method):
         props_data.append([name, value, unit, Paragraph(method, wrap_style)])
 
     if p.elastic_modulus_gpa is not None:
-        _add_prop("Elastik Modul (E)", f"{p.elastic_modulus_gpa:.1f}", "GPa",
-                  tags.get("elastic_modulus", "OLS"))
+        _add_prop(
+            "Elastik Modul (E)",
+            f"{p.elastic_modulus_gpa:.1f}",
+            "GPa",
+            tags.get("elastic_modulus", "OLS"),
+        )
 
     if p.yield_strength_mpa is not None:
-        _add_prop("Akma Dayanimi", f"{p.yield_strength_mpa:.1f}", "MPa",
-                  tags.get("yield", "---"))
+        _add_prop("Akma Dayanimi", f"{p.yield_strength_mpa:.1f}", "MPa", tags.get("yield", "---"))
 
     if p.yield_lower_mpa is not None:
         _add_prop("Alt Akma (ReL)", f"{p.yield_lower_mpa:.1f}", "MPa", tags.get("yield", "---"))
 
     if p.ultimate_tensile_mpa is not None:
-        _add_prop("Cekme Dayanimi (Rm)", f"{p.ultimate_tensile_mpa:.1f}", "MPa", tags.get("uts", "---"))
+        _add_prop(
+            "Cekme Dayanimi (Rm)", f"{p.ultimate_tensile_mpa:.1f}", "MPa", tags.get("uts", "---")
+        )
 
     if p.elongation_at_break_pct is not None:
-        _add_prop("Toplam Uzama (At)", f"{p.elongation_at_break_pct:.1f}", "%", tags.get("elongation", "---"))
+        _add_prop(
+            "Toplam Uzama (At)",
+            f"{p.elongation_at_break_pct:.1f}",
+            "%",
+            tags.get("elongation", "---"),
+        )
 
     if p.uniform_elongation_pct is not None:
-        _add_prop("Uniform Uzama (Ag)", f"{p.uniform_elongation_pct:.2f}", "%", tags.get("uniform_elongation", "---"))
+        _add_prop(
+            "Uniform Uzama (Ag)",
+            f"{p.uniform_elongation_pct:.2f}",
+            "%",
+            tags.get("uniform_elongation", "---"),
+        )
 
     if p.strain_hardening_n is not None:
-        _add_prop("Strain Hardening (n)", f"{p.strain_hardening_n:.3f}", "—",
-                  tags.get("strain_hardening", "Hollomon"))
+        _add_prop(
+            "Strain Hardening (n)",
+            f"{p.strain_hardening_n:.3f}",
+            "—",
+            tags.get("strain_hardening", "Hollomon"),
+        )
 
     if p.strength_coefficient_k is not None:
-        _add_prop("Guc Katsayisi (K)", f"{p.strength_coefficient_k:.1f}", "MPa", tags.get("strain_hardening", "Hollomon"))
+        _add_prop(
+            "Guc Katsayisi (K)",
+            f"{p.strength_coefficient_k:.1f}",
+            "MPa",
+            tags.get("strain_hardening", "Hollomon"),
+        )
 
     if p.toughness_mj_m3 is not None:
-        _add_prop("Modulus of Toughness (Ut)", f"{p.toughness_mj_m3:.2f}", "MJ/m3", tags.get("toughness", "---"))
+        _add_prop(
+            "Modulus of Toughness (Ut)",
+            f"{p.toughness_mj_m3:.2f}",
+            "MJ/m3",
+            tags.get("toughness", "---"),
+        )
 
     props_table = Table(props_data, colWidths=[4.5 * cm, 2.5 * cm, 2 * cm, 7.5 * cm])
-    props_table.setStyle(TableStyle([
-        # Header
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 9),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-        # Body
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
-        ("TOPPADDING", (0, 1), (-1, -1), 4),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        # Deger kolonu bold
-        ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
-        # Alternatif satir renkleri
-        *[("BACKGROUND", (0, i), (-1, i), COLOR_TABLE_ALT)
-          for i in range(2, len(props_data), 2)],
-        # Grid
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
-        ("LINEBELOW", (0, 0), (-1, 0), 1.5, COLOR_PRIMARY),
-    ]))
+    props_table.setStyle(
+        TableStyle(
+            [
+                # Header
+                ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                # Body
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+                ("TOPPADDING", (0, 1), (-1, -1), 4),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                # Deger kolonu bold
+                ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
+                # Alternatif satir renkleri
+                *[
+                    ("BACKGROUND", (0, i), (-1, i), COLOR_TABLE_ALT)
+                    for i in range(2, len(props_data), 2)
+                ],
+                # Grid
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, COLOR_PRIMARY),
+            ]
+        )
+    )
     elements.append(props_table)
 
     # ─────────────────────────────────────────────
@@ -464,9 +576,7 @@ def generate_pdf_report(
         img = Image(plot_buf, width=15.5 * cm, height=9.3 * cm)
         elements.append(img)
     else:
-        elements.append(Paragraph(
-            "<i>Grafik uretilemedi (matplotlib yok)</i>", styles["body"]
-        ))
+        elements.append(Paragraph("<i>Grafik uretilemedi (matplotlib yok)</i>", styles["body"]))
 
     elements.append(PageBreak())
 
@@ -481,48 +591,73 @@ def generate_pdf_report(
     if snr:
         snr_text = f"Sinyal/Gurultu Orani (SNR): {snr:.1f} dB  |  Gurultu: {noise_pct:.2f}%"
         snr_color = COLOR_SUCCESS if snr >= 30 else (COLOR_WARNING if snr >= 20 else COLOR_DANGER)
-        elements.append(Paragraph(snr_text, ParagraphStyle(
-            "SNR", fontSize=10, fontName="Helvetica-Bold", textColor=snr_color,
-            spaceBefore=2 * mm, spaceAfter=4 * mm,
-        )))
+        elements.append(
+            Paragraph(
+                snr_text,
+                ParagraphStyle(
+                    "SNR",
+                    fontSize=10,
+                    fontName="Helvetica-Bold",
+                    textColor=snr_color,
+                    spaceBefore=2 * mm,
+                    spaceAfter=4 * mm,
+                ),
+            )
+        )
 
     if ctx.anomalies:
         anomaly_data = [["Seviye", "Tip", "Aciklama", "Konum (strain)"]]
-        wrap_style = ParagraphStyle("Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black)
+        wrap_style = ParagraphStyle(
+            "Wrap", fontSize=8, leading=10, fontName="Helvetica", textColor=colors.black
+        )
         for a in ctx.anomalies:
             loc = f"{a.strain_location:.4f}" if a.strain_location else "--"
             desc = _s(a.description[:150] + ("..." if len(a.description) > 150 else ""))
-            anomaly_data.append([
-                a.severity.upper(),
-                _s(a.anomaly_type.value),
-                Paragraph(desc, wrap_style),
-                loc,
-            ])
+            anomaly_data.append(
+                [
+                    a.severity.upper(),
+                    _s(a.anomaly_type.value),
+                    Paragraph(desc, wrap_style),
+                    loc,
+                ]
+            )
 
         a_table = Table(anomaly_data, colWidths=[2 * cm, 3 * cm, 7.5 * cm, 3 * cm])
-        a_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ("LINEBELOW", (0, 0), (-1, 0), 1.5, COLOR_PRIMARY),
-            # Seviye renklendirme
-            *[("TEXTCOLOR", (0, i), (0, i),
-               COLOR_DANGER if ctx.anomalies[i - 1].severity == "critical"
-               else COLOR_WARNING if ctx.anomalies[i - 1].severity == "warning"
-               else COLOR_SUCCESS)
-              for i in range(1, len(anomaly_data))],
-            *[("FONTNAME", (0, i), (0, i), "Helvetica-Bold")
-              for i in range(1, len(anomaly_data))],
-        ]))
+        a_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ("LINEBELOW", (0, 0), (-1, 0), 1.5, COLOR_PRIMARY),
+                    # Seviye renklendirme
+                    *[
+                        (
+                            "TEXTCOLOR",
+                            (0, i),
+                            (0, i),
+                            COLOR_DANGER
+                            if ctx.anomalies[i - 1].severity == "critical"
+                            else COLOR_WARNING
+                            if ctx.anomalies[i - 1].severity == "warning"
+                            else COLOR_SUCCESS,
+                        )
+                        for i in range(1, len(anomaly_data))
+                    ],
+                    *[
+                        ("FONTNAME", (0, i), (0, i), "Helvetica-Bold")
+                        for i in range(1, len(anomaly_data))
+                    ],
+                ]
+            )
+        )
         elements.append(a_table)
     else:
-        elements.append(Paragraph(
-            "Anomali tespit edilmedi.", styles["body"]
-        ))
+        elements.append(Paragraph("Anomali tespit edilmedi.", styles["body"]))
 
     # ─────────────────────────────────────────────
     # 5. PIPELINE LOG
@@ -531,39 +666,55 @@ def generate_pdf_report(
     elements.append(Paragraph("Pipeline Islem Loglari", styles["heading"]))
 
     log_data = [["Adim", "Durum", "Sure (ms)", "Mesaj"]]
-    wrap_style_small = ParagraphStyle("WrapSmall", fontSize=7, leading=9, fontName="Helvetica", textColor=colors.black)
+    wrap_style_small = ParagraphStyle(
+        "WrapSmall", fontSize=7, leading=9, fontName="Helvetica", textColor=colors.black
+    )
     for r in ctx.step_results:
         status_text = {"success": "OK", "warning": "UYARI", "failure": "HATA"}[r.status.value]
         msg = _s(r.message[:150] + ("..." if len(r.message) > 150 else ""))
-        log_data.append([
-            _s(r.step_name),
-            status_text,
-            f"{r.duration_ms:.1f}",
-            Paragraph(msg, wrap_style_small),
-        ])
+        log_data.append(
+            [
+                _s(r.step_name),
+                status_text,
+                f"{r.duration_ms:.1f}",
+                Paragraph(msg, wrap_style_small),
+            ]
+        )
 
     total_ms = sum(r.duration_ms for r in ctx.step_results)
     log_data.append(["TOPLAM", "", f"{total_ms:.1f}", f"{len(ctx.step_results)} adim"])
 
     log_table = Table(log_data, colWidths=[3.8 * cm, 1.5 * cm, 1.8 * cm, 8.4 * cm])
-    log_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECONDARY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
-        # Toplam satiri
-        ("BACKGROUND", (0, -1), (-1, -1), COLOR_LIGHT_BG),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        # Durum renklendirme
-        *[("TEXTCOLOR", (1, i), (1, i),
-           COLOR_SUCCESS if ctx.step_results[i - 1].status.value == "success"
-           else COLOR_WARNING if ctx.step_results[i - 1].status.value == "warning"
-           else COLOR_DANGER)
-          for i in range(1, len(log_data) - 1)],
-    ]))
+    log_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), COLOR_SECONDARY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
+                # Toplam satiri
+                ("BACKGROUND", (0, -1), (-1, -1), COLOR_LIGHT_BG),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                # Durum renklendirme
+                *[
+                    (
+                        "TEXTCOLOR",
+                        (1, i),
+                        (1, i),
+                        COLOR_SUCCESS
+                        if ctx.step_results[i - 1].status.value == "success"
+                        else COLOR_WARNING
+                        if ctx.step_results[i - 1].status.value == "warning"
+                        else COLOR_DANGER,
+                    )
+                    for i in range(1, len(log_data) - 1)
+                ],
+            ]
+        )
+    )
     elements.append(log_table)
 
     # ─────────────────────────────────────────────
@@ -579,32 +730,44 @@ def generate_pdf_report(
         ["Tarih: ____________________", "Tarih: ____________________"],
     ]
     sig_table = Table(sig_data, colWidths=[7.5 * cm, 7.5 * cm])
-    sig_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("LINEBELOW", (0, 0), (-1, 0), 1, COLOR_ACCENT),
-        ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_PRIMARY),
-    ]))
+    sig_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("LINEBELOW", (0, 0), (-1, 0), 1, COLOR_ACCENT),
+                ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_PRIMARY),
+            ]
+        )
+    )
     elements.append(sig_table)
 
     # 6b. Rapor uretim notu
     elements.append(Spacer(1, 8 * mm))
-    elements.append(Paragraph(
-        f"Bu rapor CurveIntel v0.1 tarafindan {now} tarihinde otomatik olarak uretilmistir. "
-        f"Hesaplamalar {test_standard} standardina gore yapilmistir.",
-        styles["small"],
-    ))
+    elements.append(
+        Paragraph(
+            f"Bu rapor CurveIntel v0.1 tarafindan {now} tarihinde otomatik olarak uretilmistir. "
+            f"Hesaplamalar {test_standard} standardina gore yapilmistir.",
+            styles["small"],
+        )
+    )
 
     # 6c. Yasal uyari (footer tekrari — kisa versiyon)
-    elements.append(Paragraph(
-        "Bu yazilim herhangi bir akreditasyon kurulusu tarafindan akredite edilmemistir. "
-        "Akredite test raporu ancak ISO/IEC 17025 kapsaminda akredite bir laboratuvar tarafindan duzenlenebilir.",
-        ParagraphStyle("FooterDisclaimer", fontSize=7, textColor=COLOR_DANGER,
-                       fontName="Helvetica-Bold", spaceBefore=3 * mm),
-    ))
-
+    elements.append(
+        Paragraph(
+            "Bu yazilim herhangi bir akreditasyon kurulusu tarafindan akredite edilmemistir. "
+            "Akredite test raporu ancak ISO/IEC 17025 kapsaminda akredite bir laboratuvar tarafindan duzenlenebilir.",
+            ParagraphStyle(
+                "FooterDisclaimer",
+                fontSize=7,
+                textColor=COLOR_DANGER,
+                fontName="Helvetica-Bold",
+                spaceBefore=3 * mm,
+            ),
+        )
+    )
 
     # PDF olustur
     doc.build(elements)

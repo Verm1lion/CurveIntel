@@ -17,10 +17,10 @@ Referanslar:
   - Rorabacher 1991 (Q10 kritik degerler, Monte Carlo dogrulama)
   - ASTM E178 (outlier isleme rehberi)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 from scipy import stats
@@ -32,19 +32,20 @@ from scipy import stats
 # ══════════════════════════════════════════════
 _DIXON_Q10_CRITICAL: dict[int, dict[str, float]] = {
     # n: {alpha: Q_crit}
-    3:  {"0.10": 0.941, "0.05": 0.970, "0.01": 0.994},
-    4:  {"0.10": 0.765, "0.05": 0.829, "0.01": 0.926},
-    5:  {"0.10": 0.642, "0.05": 0.710, "0.01": 0.821},
-    6:  {"0.10": 0.560, "0.05": 0.625, "0.01": 0.740},
-    7:  {"0.10": 0.507, "0.05": 0.568, "0.01": 0.680},
+    3: {"0.10": 0.941, "0.05": 0.970, "0.01": 0.994},
+    4: {"0.10": 0.765, "0.05": 0.829, "0.01": 0.926},
+    5: {"0.10": 0.642, "0.05": 0.710, "0.01": 0.821},
+    6: {"0.10": 0.560, "0.05": 0.625, "0.01": 0.740},
+    7: {"0.10": 0.507, "0.05": 0.568, "0.01": 0.680},
 }
 
 
 @dataclass
 class OutlierResult:
     """Tek bir outlier test sonucu."""
-    test_name: str            # "Dixon Q10" veya "Grubbs"
-    property_name: str        # "E", "Rp0.2", vb.
+
+    test_name: str  # "Dixon Q10" veya "Grubbs"
+    property_name: str  # "E", "Rp0.2", vb.
     outlier_value: float | None
     outlier_index: int | None  # Orijinal listedeki indeks
     test_statistic: float
@@ -57,6 +58,7 @@ class OutlierResult:
 @dataclass
 class PropertyStats:
     """Tek bir mekanik ozellik icin istatistik ozeti."""
+
     name: str
     unit: str
     values: list[float] = field(default_factory=list)
@@ -85,6 +87,7 @@ class PropertyStats:
 @dataclass
 class BatchQCReport:
     """Tam batch QC rapor sonucu."""
+
     n_specimens: int = 0
     n_passed: int = 0
     n_failed: int = 0
@@ -482,8 +485,10 @@ def format_batch_summary(report: BatchQCReport) -> str:
 
     if report.property_stats:
         lines.append("")
-        lines.append(f"  {'Ozellik':<15} {'Ortalama':>12} {'Std':>10} {'CoV%':>8} "
-                     f"{'Min':>10} {'Max':>10} {'CI±':>10} {'n':>4} {'Durum':>8}")
+        lines.append(
+            f"  {'Ozellik':<15} {'Ortalama':>12} {'Std':>10} {'CoV%':>8} "
+            f"{'Min':>10} {'Max':>10} {'CI±':>10} {'n':>4} {'Durum':>8}"
+        )
         lines.append("  " + "-" * 98)
 
         for ps in report.property_stats.values():
@@ -535,9 +540,11 @@ def generate_batch_plots(
 
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from pathlib import Path
+
         output_dir = Path(output_dir)
     except ImportError:
         return output_files
@@ -563,11 +570,17 @@ def generate_batch_plots(
                     break
 
         if is_outlier:
-            ax.plot(ctx.strain, ctx.stress, "--", color=color, alpha=0.4,
-                    lw=0.8, label=f"{label} (OUTLIER)")
+            ax.plot(
+                ctx.strain,
+                ctx.stress,
+                "--",
+                color=color,
+                alpha=0.4,
+                lw=0.8,
+                label=f"{label} (OUTLIER)",
+            )
         else:
-            ax.plot(ctx.strain, ctx.stress, "-", color=color, alpha=0.8,
-                    lw=1.0, label=label)
+            ax.plot(ctx.strain, ctx.stress, "-", color=color, alpha=0.8, lw=1.0, label=label)
             all_stresses.append(ctx.stress)
 
     # Ortalama egri (non-outlier)
@@ -576,8 +589,7 @@ def generate_batch_plots(
         stacked = np.column_stack([s[:min_len] for s in all_stresses])
         mean_stress = np.mean(stacked, axis=1)
         mean_strain = valid_ctxs[0].strain[:min_len]  # ilk gecerli numunenin strain'i
-        ax.plot(mean_strain, mean_stress, "k-", lw=2.5, label="Ortalama",
-                zorder=10)
+        ax.plot(mean_strain, mean_stress, "k-", lw=2.5, label="Ortalama", zorder=10)
 
     ax.set_xlabel("Strain (mm/mm)", fontsize=12)
     ax.set_ylabel("Stress (MPa)", fontsize=12)
@@ -605,20 +617,24 @@ def generate_batch_plots(
             axes = [axes]
 
         for ax_i, (name, vals) in enumerate(zip(prop_names, prop_values)):
-            bp = axes[ax_i].boxplot(vals, widths=0.5, patch_artist=True,
-                                    boxprops=dict(facecolor="#42a5f5", alpha=0.7),
-                                    medianprops=dict(color="#c62828", lw=2))
+            axes[ax_i].boxplot(
+                vals,
+                widths=0.5,
+                patch_artist=True,
+                boxprops=dict(facecolor="#42a5f5", alpha=0.7),
+                medianprops=dict(color="#c62828", lw=2),
+            )
             axes[ax_i].set_title(name, fontsize=11, fontweight="bold")
             axes[ax_i].set_xticks([])
             axes[ax_i].grid(True, axis="y", alpha=0.3)
 
             # Bireysel noktalar
             jitter = np.random.normal(1, 0.04, len(vals))
-            axes[ax_i].scatter(jitter, vals, c="#1a237e", alpha=0.5,
-                               s=30, zorder=5)
+            axes[ax_i].scatter(jitter, vals, c="#1a237e", alpha=0.5, s=30, zorder=5)
 
-        fig.suptitle("CurveIntel — Batch Box-Whisker (Mekanik Ozellikler)",
-                     fontsize=13, fontweight="bold")
+        fig.suptitle(
+            "CurveIntel — Batch Box-Whisker (Mekanik Ozellikler)", fontsize=13, fontweight="bold"
+        )
         fig.tight_layout()
 
         box_path = output_dir / "batch_boxwhisker.png"
@@ -652,7 +668,8 @@ _SPC_CONSTANTS: dict[int, dict[str, float]] = {
 @dataclass
 class NelsonViolation:
     """Tek bir Nelson kural ihlali."""
-    rule: int          # 1-8
+
+    rule: int  # 1-8
     description: str
     indices: list[int]  # Ihlal eden noktalarin indeksleri
 
@@ -660,6 +677,7 @@ class NelsonViolation:
 @dataclass
 class SPCResult:
     """SPC analiz sonucu."""
+
     property_name: str
     grand_mean: float
     r_bar: float
@@ -702,103 +720,119 @@ def _check_nelson_rules(
     # Rule 1: Tek nokta |z| > 3
     for i, zi in enumerate(z):
         if abs(zi) > 3:
-            violations.append(NelsonViolation(
-                rule=1,
-                description=f"Nokta {i}: 3-sigma disinda (z={zi:.2f})",
-                indices=[i],
-            ))
+            violations.append(
+                NelsonViolation(
+                    rule=1,
+                    description=f"Nokta {i}: 3-sigma disinda (z={zi:.2f})",
+                    indices=[i],
+                )
+            )
 
     # Rule 2: 9 ardisik nokta ayni tarafta
     if n >= 9:
         for i in range(n - 8):
-            window = z[i:i + 9]
+            window = z[i : i + 9]
             if all(v > 0 for v in window) or all(v < 0 for v in window):
-                violations.append(NelsonViolation(
-                    rule=2,
-                    description=f"Noktalar {i}-{i+8}: 9 ardisik ayni tarafta",
-                    indices=list(range(i, i + 9)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=2,
+                        description=f"Noktalar {i}-{i + 8}: 9 ardisik ayni tarafta",
+                        indices=list(range(i, i + 9)),
+                    )
+                )
                 break  # Tek sefer raporla
 
     # Rule 3: 6 ardisik artan veya azalan
     if n >= 6:
         for i in range(n - 5):
-            window = values[i:i + 6]
+            window = values[i : i + 6]
             diffs = [window[j + 1] - window[j] for j in range(5)]
             if all(d > 0 for d in diffs) or all(d < 0 for d in diffs):
                 trend = "artan" if diffs[0] > 0 else "azalan"
-                violations.append(NelsonViolation(
-                    rule=3,
-                    description=f"Noktalar {i}-{i+5}: 6 ardisik {trend}",
-                    indices=list(range(i, i + 6)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=3,
+                        description=f"Noktalar {i}-{i + 5}: 6 ardisik {trend}",
+                        indices=list(range(i, i + 6)),
+                    )
+                )
                 break
 
     # Rule 4: 14 ardisik alternating
     if n >= 14:
         for i in range(n - 13):
-            window = values[i:i + 14]
+            window = values[i : i + 14]
             diffs = [window[j + 1] - window[j] for j in range(13)]
             signs = [1 if d > 0 else -1 for d in diffs]
             alternating = all(signs[j] != signs[j + 1] for j in range(12))
             if alternating:
-                violations.append(NelsonViolation(
-                    rule=4,
-                    description=f"Noktalar {i}-{i+13}: 14 ardisik alternating",
-                    indices=list(range(i, i + 14)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=4,
+                        description=f"Noktalar {i}-{i + 13}: 14 ardisik alternating",
+                        indices=list(range(i, i + 14)),
+                    )
+                )
                 break
 
     # Rule 5: 2/3 ardisik nokta 2-sigma disinda (ayni tarafta)
     if n >= 3:
         for i in range(n - 2):
-            window = z[i:i + 3]
+            window = z[i : i + 3]
             above = sum(1 for v in window if v > 2)
             below = sum(1 for v in window if v < -2)
             if above >= 2 or below >= 2:
-                violations.append(NelsonViolation(
-                    rule=5,
-                    description=f"Noktalar {i}-{i+2}: 2/3 nokta 2-sigma disinda",
-                    indices=list(range(i, i + 3)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=5,
+                        description=f"Noktalar {i}-{i + 2}: 2/3 nokta 2-sigma disinda",
+                        indices=list(range(i, i + 3)),
+                    )
+                )
                 break
 
     # Rule 6: 4/5 ardisik nokta 1-sigma disinda (ayni tarafta)
     if n >= 5:
         for i in range(n - 4):
-            window = z[i:i + 5]
+            window = z[i : i + 5]
             above = sum(1 for v in window if v > 1)
             below = sum(1 for v in window if v < -1)
             if above >= 4 or below >= 4:
-                violations.append(NelsonViolation(
-                    rule=6,
-                    description=f"Noktalar {i}-{i+4}: 4/5 nokta 1-sigma disinda",
-                    indices=list(range(i, i + 5)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=6,
+                        description=f"Noktalar {i}-{i + 4}: 4/5 nokta 1-sigma disinda",
+                        indices=list(range(i, i + 5)),
+                    )
+                )
                 break
 
     # Rule 7: 15 ardisik nokta 1-sigma icinde (stratification)
     if n >= 15:
         for i in range(n - 14):
-            window = z[i:i + 15]
+            window = z[i : i + 15]
             if all(abs(v) < 1 for v in window):
-                violations.append(NelsonViolation(
-                    rule=7,
-                    description=f"Noktalar {i}-{i+14}: 15 ardisik 1-sigma icinde",
-                    indices=list(range(i, i + 15)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=7,
+                        description=f"Noktalar {i}-{i + 14}: 15 ardisik 1-sigma icinde",
+                        indices=list(range(i, i + 15)),
+                    )
+                )
                 break
 
     # Rule 8: 8 ardisik nokta 1-sigma disinda (mixture)
     if n >= 8:
         for i in range(n - 7):
-            window = z[i:i + 8]
+            window = z[i : i + 8]
             if all(abs(v) > 1 for v in window):
-                violations.append(NelsonViolation(
-                    rule=8,
-                    description=f"Noktalar {i}-{i+7}: 8 ardisik 1-sigma disinda",
-                    indices=list(range(i, i + 8)),
-                ))
+                violations.append(
+                    NelsonViolation(
+                        rule=8,
+                        description=f"Noktalar {i}-{i + 7}: 8 ardisik 1-sigma disinda",
+                        indices=list(range(i, i + 8)),
+                    )
+                )
                 break
 
     return violations
@@ -828,8 +862,11 @@ def run_spc_analysis(
         return SPCResult(
             property_name=property_name,
             grand_mean=batch_means[0] if batch_means else 0,
-            r_bar=0, ucl_xbar=0, lcl_xbar=0,
-            ucl_r=0, lcl_r=0,
+            r_bar=0,
+            ucl_xbar=0,
+            lcl_xbar=0,
+            ucl_r=0,
+            lcl_r=0,
             subgroup_means=batch_means,
             subgroup_ranges=[],
             nelson_violations=[],
@@ -896,9 +933,11 @@ def generate_spc_chart(
 
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from pathlib import Path
+
         output_dir = Path(output_dir)
     except ImportError:
         return output_files
@@ -919,15 +958,19 @@ def generate_spc_chart(
 
     # Sigma bolgeleri (renkli band)
     sigma = (r.ucl_xbar - r.grand_mean) / 3
-    for i, (alpha_val, color) in enumerate([
-        (0.08, "#a5d6a7"),  # 1-sigma (yesil)
-        (0.06, "#fff9c4"),  # 2-sigma (sari)
-        (0.04, "#ffcdd2"),  # 3-sigma (kirmizi)
-    ]):
-        ax1.axhspan(r.grand_mean + i * sigma, r.grand_mean + (i + 1) * sigma,
-                     alpha=alpha_val, color=color)
-        ax1.axhspan(r.grand_mean - (i + 1) * sigma, r.grand_mean - i * sigma,
-                     alpha=alpha_val, color=color)
+    for i, (alpha_val, color) in enumerate(
+        [
+            (0.08, "#a5d6a7"),  # 1-sigma (yesil)
+            (0.06, "#fff9c4"),  # 2-sigma (sari)
+            (0.04, "#ffcdd2"),  # 3-sigma (kirmizi)
+        ]
+    ):
+        ax1.axhspan(
+            r.grand_mean + i * sigma, r.grand_mean + (i + 1) * sigma, alpha=alpha_val, color=color
+        )
+        ax1.axhspan(
+            r.grand_mean - (i + 1) * sigma, r.grand_mean - i * sigma, alpha=alpha_val, color=color
+        )
 
     # Nelson ihlalleri
     for nv in r.nelson_violations:
@@ -936,10 +979,13 @@ def generate_spc_chart(
                 ax1.plot(idx + 1, r.subgroup_means[idx], "r*", ms=14, zorder=10)
 
     ax1.set_ylabel(f"{r.property_name}", fontsize=12)
-    ax1.set_title(f"X-bar Chart: {r.property_name} "
-                  f"({'KONTROL ICINDE' if r.is_in_control else 'KONTROL DISI!'})",
-                  fontsize=13, fontweight="bold",
-                  color="#1b5e20" if r.is_in_control else "#c62828")
+    ax1.set_title(
+        f"X-bar Chart: {r.property_name} "
+        f"({'KONTROL ICINDE' if r.is_in_control else 'KONTROL DISI!'})",
+        fontsize=13,
+        fontweight="bold",
+        color="#1b5e20" if r.is_in_control else "#c62828",
+    )
     ax1.legend(fontsize=9, loc="upper right")
     ax1.grid(True, alpha=0.3)
 

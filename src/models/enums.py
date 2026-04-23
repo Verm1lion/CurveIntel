@@ -1,53 +1,59 @@
 """
 CurveIntel enum definitions.
 
-Malzeme türleri, akma davranışları ve anomali tipleri için
-standartlaştırılmış enum değerleri.
+Standardized enum values for material families, yield behavior,
+anomaly categories, and data representations.
 """
-from enum import Enum, auto
+
+from enum import Enum
 
 
 class MaterialType(str, Enum):
-    """Malzeme türü sınıflandırması."""
-    STEEL_STRUCTURAL = "structural_steel"      # S355, S690 vb.
-    STEEL_DP = "dual_phase_steel"              # DP980, DP1180
-    STEEL_LOW_CARBON = "low_carbon_steel"      # Q235, AISI 1018
-    STEEL_STAINLESS = "stainless_steel"        # 316L, 304
-    ALUMINUM = "aluminum"                       # AA6xxx, 7075
-    POLYMER = "polymer"                         # FKM, PLA, PDMS
-    COMPOSITE = "composite"                     # CFRP
+    """Material family classification."""
+
+    STEEL_STRUCTURAL = "structural_steel"  # S355, S690, and similar grades
+    STEEL_DP = "dual_phase_steel"  # DP980, DP1180
+    STEEL_LOW_CARBON = "low_carbon_steel"  # Q235, AISI 1018
+    STEEL_STAINLESS = "stainless_steel"  # 316L, 304
+    ALUMINUM = "aluminum"  # AA6xxx, 7075
+    POLYMER = "polymer"  # FKM, PLA, PDMS
+    COMPOSITE = "composite"  # CFRP
     UNKNOWN = "unknown"
 
 
 class YieldBehavior(str, Enum):
-    """Akma davranışı sınıflandırması."""
-    CONTINUOUS = "continuous"           # Sürekli akma — 0.2% offset kullanılır
-    DISCONTINUOUS = "discontinuous"    # Çift akma (Lüders bantları) — ReH/ReL
-    UNDEFINED = "undefined"            # Henüz belirlenmedi
+    """Yield behavior classification."""
+
+    CONTINUOUS = "continuous"  # Smooth yielding, use 0.2% offset
+    DISCONTINUOUS = "discontinuous"  # Upper/lower yield with Luders plateau
+    UNDEFINED = "undefined"  # Not classified yet
 
 
 class AnomalyType(str, Enum):
-    """Tespit edilebilecek anomali türleri."""
-    GRIP_SLIPPAGE = "grip_slippage"            # Kavrama kayması
-    SPIKE = "spike"                             # Elektriksel sıçrama
-    PREMATURE_FRACTURE = "premature_fracture"  # Erken kırılma
-    TOE_REGION = "toe_region"                   # Başlangıç oturma artefaktı
-    TRUNCATION = "truncation"                   # Veri kesilmesi
-    SENSOR_SATURATION = "sensor_saturation"     # Sensör saturasyonu
-    HIGH_NOISE = "high_noise"                   # Yüksek gürültü
-    DOUBLE_YIELD = "double_yield"               # Çift akma (anomali DEĞİL, bilgi)
-    NON_MONOTONIC = "non_monotonic"             # Siklik/non-monotonic yükleme
+    """Anomaly categories detected by the pipeline."""
+
+    GRIP_SLIPPAGE = "grip_slippage"  # Grip slip
+    SPIKE = "spike"  # Electrical spike
+    PREMATURE_FRACTURE = "premature_fracture"  # Early fracture
+    TOE_REGION = "toe_region"  # Seating artifact near the origin
+    TRUNCATION = "truncation"  # Incomplete curve
+    SENSOR_SATURATION = "sensor_saturation"  # Saturated load signal
+    HIGH_NOISE = "high_noise"  # Excessive noise
+    DOUBLE_YIELD = "double_yield"  # Informational upper/lower yield event
+    NON_MONOTONIC = "non_monotonic"  # Cyclic or non-monotonic loading
 
 
 class StepStatus(str, Enum):
-    """Her pipeline adımının sonuç durumu."""
+    """Execution outcome for a pipeline step."""
+
     SUCCESS = "success"
     WARNING = "warning"
     FAILURE = "failure"
 
 
 class StressStrainType(str, Enum):
-    """Stress-strain veri türü."""
-    ENGINEERING = "engineering"   # Mühendislik (nominal) değerleri
-    TRUE = "true"                 # Gerçek (true) değerleri
-    RAW = "raw"                   # Ham kuvvet-deplasman
+    """Stress-strain representation type."""
+
+    ENGINEERING = "engineering"  # Nominal engineering values
+    TRUE = "true"  # True stress / true strain values
+    RAW = "raw"  # Raw force-displacement measurements

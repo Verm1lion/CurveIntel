@@ -12,6 +12,7 @@ Tespit edilen anomaliler:
   - Truncation: Veri kesilmesi (eksik kopma bolmesi)
   - Luders band genisligi: Cift yield durumunda bilgi
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -35,7 +36,7 @@ class GripSlippageDetector(PipelineStep):
 
     def __init__(self, drop_threshold: float = 0.15, recovery_pct: float = 0.80):
         self._drop_threshold = drop_threshold  # UTS'nin %'si olarak dusus esigi
-        self._recovery_pct = recovery_pct      # Recovery icin gereken oran
+        self._recovery_pct = recovery_pct  # Recovery icin gereken oran
 
     @property
     def name(self) -> str:
@@ -139,10 +140,12 @@ class SensorSaturationDetector(PipelineStep):
             return self._success("Veri yetersiz — saturasyon kontrolu atlandi.")
 
         # Rolling standart sapma
-        rolling_std = np.array([
-            np.std(stress[max(0, i - self._window // 2):i + self._window // 2])
-            for i in range(n)
-        ])
+        rolling_std = np.array(
+            [
+                np.std(stress[max(0, i - self._window // 2) : i + self._window // 2])
+                for i in range(n)
+            ]
+        )
 
         # Cok dusuk standart sapma bolgeleri bul
         flat_mask = rolling_std < self._std_threshold
@@ -171,8 +174,9 @@ class SensorSaturationDetector(PipelineStep):
             region_strain_start = strain[start]
             region_strain_end = strain[end]
             # Yield civarinda degilse -> gercek saturasyon
-            if not (region_strain_start < yield_strain * 2 and
-                    region_strain_end < yield_strain * 3):
+            if not (
+                region_strain_start < yield_strain * 2 and region_strain_end < yield_strain * 3
+            ):
                 true_saturations.append((start, end))
                 ctx.add_anomaly(
                     anomaly_type=AnomalyType.SENSOR_SATURATION,
@@ -188,9 +192,7 @@ class SensorSaturationDetector(PipelineStep):
         if not true_saturations:
             return self._success("Sensor saturasyonu tespit edilmedi.")
 
-        return self._warning(
-            f"{len(true_saturations)} saturasyon bolgesi tespit edildi."
-        )
+        return self._warning(f"{len(true_saturations)} saturasyon bolgesi tespit edildi.")
 
 
 class NoiseAnalyzer(PipelineStep):
@@ -231,8 +233,8 @@ class NoiseAnalyzer(PipelineStep):
         smooth = savgol_filter(stress, window_length=window, polyorder=3)
         noise = stress - smooth
 
-        rms_signal = np.sqrt(np.mean(stress ** 2))
-        rms_noise = np.sqrt(np.mean(noise ** 2))
+        rms_signal = np.sqrt(np.mean(stress**2))
+        rms_noise = np.sqrt(np.mean(noise**2))
 
         if rms_noise < 1e-10:
             snr_db = 100.0  # Pratik olarak sonsuz SNR
@@ -257,13 +259,11 @@ class NoiseAnalyzer(PipelineStep):
                 severity="warning",
             )
             return self._warning(
-                f"SNR={snr_db:.1f} dB (esik alti). "
-                f"Gurultu: {rms_noise:.2f} MPa ({noise_pct:.1f}%)"
+                f"SNR={snr_db:.1f} dB (esik alti). Gurultu: {rms_noise:.2f} MPa ({noise_pct:.1f}%)"
             )
 
         return self._success(
-            f"SNR={snr_db:.1f} dB (iyi). "
-            f"Gurultu: {rms_noise:.2f} MPa ({noise_pct:.1f}%)"
+            f"SNR={snr_db:.1f} dB (iyi). Gurultu: {rms_noise:.2f} MPa ({noise_pct:.1f}%)"
         )
 
 
@@ -362,9 +362,7 @@ class PropertyValidator(PipelineStep):
         # E kontrolu
         if p.elastic_modulus_gpa is not None:
             if not (1 <= p.elastic_modulus_gpa <= 600):
-                issues.append(
-                    f"E={p.elastic_modulus_gpa:.1f} GPa -> makul aralik disi (1-600)"
-                )
+                issues.append(f"E={p.elastic_modulus_gpa:.1f} GPa -> makul aralik disi (1-600)")
 
         # Yield < UTS kontrolu
         if p.yield_strength_mpa and p.ultimate_tensile_mpa:
@@ -385,9 +383,7 @@ class PropertyValidator(PipelineStep):
         # n degeri
         if p.strain_hardening_n is not None:
             if not (0.01 <= p.strain_hardening_n <= 1.0):
-                issues.append(
-                    f"n={p.strain_hardening_n:.3f} -> makul aralik disi (0.01-1.0)"
-                )
+                issues.append(f"n={p.strain_hardening_n:.3f} -> makul aralik disi (0.01-1.0)")
 
         # Tokluk
         if p.toughness_mj_m3 is not None and p.toughness_mj_m3 <= 0:

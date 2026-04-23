@@ -1,55 +1,75 @@
 """
-CurveIntel - Tam Veri Seti Teşhis Scripti
-Tüm CSV dosyalarını pipeline'dan geçirip durumlarını raporlar.
+CurveIntel full-dataset diagnostic script.
+
+Runs every CSV file through the pipeline and reports the resulting status.
 """
-import sys, os, time, csv
+
+import sys
+import time
+import csv
 from pathlib import Path
 
-# Proje root
+# Project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.pipeline.base import Pipeline, AnalysisContext
 from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
-from src.pipeline.preprocessing import SpikeFilter, ToeCompensation, Resampler, SavitzkyGolayFilter, MonotonicityChecker
+from src.pipeline.preprocessing import (
+    SpikeFilter,
+    ToeCompensation,
+    Resampler,
+    SavitzkyGolayFilter,
+    MonotonicityChecker,
+)
 from src.pipeline.extraction import (
-    ElasticModulusDetector, YieldDetector, UTSDetector,
-    ElongationDetector, NeckingDetector, StrainHardeningFitter, ToughnessCalculator,
+    ElasticModulusDetector,
+    YieldDetector,
+    UTSDetector,
+    ElongationDetector,
+    NeckingDetector,
+    StrainHardeningFitter,
+    ToughnessCalculator,
     StrainRateValidator,
 )
 from src.pipeline.anomaly import (
-    GripSlippageDetector, SensorSaturationDetector,
-    NoiseAnalyzer, CurveIntegrityChecker, PropertyValidator,
+    GripSlippageDetector,
+    SensorSaturationDetector,
+    NoiseAnalyzer,
+    CurveIntegrityChecker,
+    PropertyValidator,
 )
 
 
 def build_pipeline(csv_path: Path) -> Pipeline:
-    return Pipeline([
-        DataLoader(csv_path),
-        SchemaDetector(),
-        UnitConverter(),
-        SpikeFilter(window_size=5, threshold_sigma=3.0),
-        MonotonicityChecker(),
-        ToeCompensation(),
-        Resampler(n_points=2000),
-        SavitzkyGolayFilter(window_length=21, polyorder=3),
-        ElasticModulusDetector(),
-        YieldDetector(),
-        UTSDetector(),
-        ElongationDetector(),
-        NeckingDetector(),
-        StrainHardeningFitter(),
-        ToughnessCalculator(),
-        StrainRateValidator(),
-        GripSlippageDetector(),
-        SensorSaturationDetector(),
-        NoiseAnalyzer(),
-        CurveIntegrityChecker(),
-        PropertyValidator(),
-    ])
+    return Pipeline(
+        [
+            DataLoader(csv_path),
+            SchemaDetector(),
+            UnitConverter(),
+            SpikeFilter(window_size=5, threshold_sigma=3.0),
+            MonotonicityChecker(),
+            ToeCompensation(),
+            Resampler(n_points=2000),
+            SavitzkyGolayFilter(window_length=21, polyorder=3),
+            ElasticModulusDetector(),
+            YieldDetector(),
+            UTSDetector(),
+            ElongationDetector(),
+            NeckingDetector(),
+            StrainHardeningFitter(),
+            ToughnessCalculator(),
+            StrainRateValidator(),
+            GripSlippageDetector(),
+            SensorSaturationDetector(),
+            NoiseAnalyzer(),
+            CurveIntegrityChecker(),
+            PropertyValidator(),
+        ]
+    )
 
 
 def analyze_file(csv_path: Path) -> dict:
-    """Tek dosyayı analiz et, sonuçları dict olarak döndür."""
+    """Analyze one file and return a summary dictionary."""
     result = {
         "file": csv_path.name,
         "dir": csv_path.parent.name,
@@ -95,20 +115,27 @@ def analyze_file(csv_path: Path) -> dict:
         result["E_gpa"] = round(p.elastic_modulus_gpa, 1) if p.elastic_modulus_gpa else None
         result["yield_mpa"] = round(p.yield_strength_mpa, 1) if p.yield_strength_mpa else None
         result["uts_mpa"] = round(p.ultimate_tensile_mpa, 1) if p.ultimate_tensile_mpa else None
-        result["elongation_pct"] = round(p.elongation_at_break_pct, 1) if p.elongation_at_break_pct else None
+        result["elongation_pct"] = (
+            round(p.elongation_at_break_pct, 1) if p.elongation_at_break_pct else None
+        )
 
         # Quality score
         from src.pipeline.reporting import _quality_score
+
         score, grade = _quality_score(ctx)
         result["score"] = round(score, 0)
         result["grade"] = grade
 
         # Hangi property'ler eksik?
         missing = []
-        if not p.elastic_modulus_gpa: missing.append("E")
-        if not p.yield_strength_mpa: missing.append("Yield")
-        if not p.ultimate_tensile_mpa: missing.append("UTS")
-        if not p.elongation_at_break_pct: missing.append("Elong")
+        if not p.elastic_modulus_gpa:
+            missing.append("E")
+        if not p.yield_strength_mpa:
+            missing.append("Yield")
+        if not p.ultimate_tensile_mpa:
+            missing.append("UTS")
+        if not p.elongation_at_break_pct:
+            missing.append("Elong")
         result["missing_props"] = missing
 
         # Anomaliler
@@ -127,7 +154,9 @@ def analyze_file(csv_path: Path) -> dict:
 
         if is_cyclic:
             result["status"] = "CYCLIC"
-            result["fail_reason"] = f"Cyclic data ({ctx.extra.get('strain_reversals', 0)} reversals)"
+            result["fail_reason"] = (
+                f"Cyclic data ({ctx.extra.get('strain_reversals', 0)} reversals)"
+            )
         elif result["uts_mpa"] and result["uts_mpa"] > 0:
             if len(missing) <= 1:
                 result["status"] = "FULL_RESULT"
@@ -154,7 +183,14 @@ if __name__ == "__main__":
     print(f"[DIAGNOSTIC] {len(csv_files)} CSV dosyasi bulundu\n")
 
     results = []
-    status_counts = {"FULL_RESULT": 0, "PARTIAL_RESULT": 0, "DATA_ONLY": 0, "CYCLIC": 0, "NO_DATA": 0, "ERROR": 0}
+    status_counts = {
+        "FULL_RESULT": 0,
+        "PARTIAL_RESULT": 0,
+        "DATA_ONLY": 0,
+        "CYCLIC": 0,
+        "NO_DATA": 0,
+        "ERROR": 0,
+    }
 
     for i, f in enumerate(csv_files, 1):
         r = analyze_file(f)
@@ -162,23 +198,36 @@ if __name__ == "__main__":
         status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
 
         # Progress
-        icon = {"FULL_RESULT": "[OK]", "PARTIAL_RESULT": "[PT]", "DATA_ONLY": "[DO]", "CYCLIC": "[CY]", "NO_DATA": "[ND]", "ERROR": "[ER]"}.get(r["status"], "[??]")
-        props = f"E={r['E_gpa']} Ys={r['yield_mpa']} UTS={r['uts_mpa']}" if r["uts_mpa"] else (r["fail_reason"] or "no props")[:50]
-        print(f"  [{i:3d}/{len(csv_files)}] {icon} {r['dir']}/{r['file'][:50]:50s} | {r['status']:15s} | {props}")
+        icon = {
+            "FULL_RESULT": "[OK]",
+            "PARTIAL_RESULT": "[PT]",
+            "DATA_ONLY": "[DO]",
+            "CYCLIC": "[CY]",
+            "NO_DATA": "[ND]",
+            "ERROR": "[ER]",
+        }.get(r["status"], "[??]")
+        props = (
+            f"E={r['E_gpa']} Ys={r['yield_mpa']} UTS={r['uts_mpa']}"
+            if r["uts_mpa"]
+            else (r["fail_reason"] or "no props")[:50]
+        )
+        print(
+            f"  [{i:3d}/{len(csv_files)}] {icon} {r['dir']}/{r['file'][:50]:50s} | {r['status']:15s} | {props}"
+        )
 
     # Özet
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"SONUÇLAR ({len(csv_files)} dosya)")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     for status, count in sorted(status_counts.items()):
         pct = count / len(csv_files) * 100
         bar = "█" * int(pct / 2) + "░" * (50 - int(pct / 2))
         print(f"  {status:20s} {count:4d} ({pct:5.1f}%) {bar}")
 
     # Fail nedenleri
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("BAŞARISIZ DOSYALAR (NO_DATA + ERROR)")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     fails = [r for r in results if r["status"] in ("NO_DATA", "ERROR")]
     if fails:
         # Grup: neden
@@ -191,15 +240,33 @@ if __name__ == "__main__":
             for fn in files[:5]:
                 print(f"    - {fn}")
             if len(files) > 5:
-                print(f"    ... ve {len(files)-5} dosya daha")
+                print(f"    ... ve {len(files) - 5} dosya daha")
 
     # CSV export
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "status", "is_cyclic", "dir", "file", "n_points", "E_gpa", "yield_mpa", "uts_mpa",
-            "elongation_pct", "score", "grade", "duration_ms", "fail_reason",
-            "missing_props", "warnings", "errors", "size_kb", "rel_path"
-        ])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "status",
+                "is_cyclic",
+                "dir",
+                "file",
+                "n_points",
+                "E_gpa",
+                "yield_mpa",
+                "uts_mpa",
+                "elongation_pct",
+                "score",
+                "grade",
+                "duration_ms",
+                "fail_reason",
+                "missing_props",
+                "warnings",
+                "errors",
+                "size_kb",
+                "rel_path",
+            ],
+        )
         writer.writeheader()
         for r in results:
             row = dict(r)

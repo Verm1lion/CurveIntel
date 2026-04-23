@@ -1,10 +1,11 @@
 """
-CurveIntel — Katman 1: Data Ingestion.
+CurveIntel - Layer 1: Data ingestion.
 
-CSV dosyasını okuyup, kolon adlarını tanıyıp, birimleri dönüştüren modüller.
-Giriş: ham CSV dosya yolu + kullanıcı metadata
-Çıkış: AnalysisContext.stress / .strain dizileri (MPa / boyutsuz)
+Modules that read CSV files, detect columns, and normalize units.
+Input: raw CSV path + user metadata
+Output: AnalysisContext.stress / .strain arrays (MPa / dimensionless)
 """
+
 from __future__ import annotations
 
 import re
@@ -27,13 +28,13 @@ _STRESS_PATTERNS: list[re.Pattern] = [
     re.compile(r"(?i)^Eng_Stress"),
     re.compile(r"(?i)^true[\s_]?stress"),
     re.compile(r"(?i)^S[\s_]?Stress"),
-    re.compile(r"(?i)^[ET]stress$"),       # NIST: Estress, Tstress
-    re.compile(r"(?i)^spannung"),          # Almanca: Spannung/Zugspannung
-    re.compile(r"(?i)^zugspannung"),       # Almanca: ZwickRoell
-    re.compile(r"(?i)^contrainte"),        # Fransizca
-    re.compile(r"(?i)^gerilme"),           # Turkce: DEVOTRANS
+    re.compile(r"(?i)^[ET]stress$"),  # NIST: Estress, Tstress
+    re.compile(r"(?i)^spannung"),  # Almanca: Spannung/Zugspannung
+    re.compile(r"(?i)^zugspannung"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^contrainte"),  # Fransizca
+    re.compile(r"(?i)^gerilme"),  # Turkce: DEVOTRANS
     re.compile(r"(?i)^tensile[\s_]?stress"),  # Instron Bluehill
-    re.compile(r"(?i)^axial[\s_]?stress"),    # MTS TestSuite
+    re.compile(r"(?i)^axial[\s_]?stress"),  # MTS TestSuite
 ]
 
 _STRAIN_PATTERNS: list[re.Pattern] = [
@@ -43,59 +44,59 @@ _STRAIN_PATTERNS: list[re.Pattern] = [
     re.compile(r"(?i)^Eng_Strain"),
     re.compile(r"(?i)^true[\s_]?strain"),
     re.compile(r"(?i)^strain"),
-    re.compile(r"(?i)^[ET]strain$"),       # NIST: Estrain, Tstrain
-    re.compile(r"(?i)^dehnung"),           # Almanca: Dehnung
-    re.compile(r"(?i)^deformation"),       # Genel
+    re.compile(r"(?i)^[ET]strain$"),  # NIST: Estrain, Tstrain
+    re.compile(r"(?i)^dehnung"),  # Almanca: Dehnung
+    re.compile(r"(?i)^deformation"),  # Genel
     re.compile(r"(?i)^birim[\s_]?(uzama|sekil)"),  # Turkce: DEVOTRANS
-    re.compile(r"(?i)^%[\s_]?uzama"),              # Turkce: % Uzama
+    re.compile(r"(?i)^%[\s_]?uzama"),  # Turkce: % Uzama
     re.compile(r"(?i)^tensile[\s_]?strain"),  # Instron Bluehill
-    re.compile(r"(?i)^axial[\s_]?strain"),    # MTS TestSuite
+    re.compile(r"(?i)^axial[\s_]?strain"),  # MTS TestSuite
 ]
 
 _FORCE_PATTERNS: list[re.Pattern] = [
     re.compile(r"(?i)^force"),
     re.compile(r"(?i)^load"),
-    re.compile(r"(?i)^kuvvet"),             # Turkce: DEVOTRANS
+    re.compile(r"(?i)^kuvvet"),  # Turkce: DEVOTRANS
     re.compile(r"(?i)^Force_\(kN\)"),
     re.compile(r"(?i)^F[\s_]?\("),
-    re.compile(r"(?i)^standardkraft"),      # Almanca: ZwickRoell
-    re.compile(r"(?i)^kraft"),              # Almanca: Hegewald
-    re.compile(r"(?i)^prufkraft"),          # Almanca: ZwickRoell
-    re.compile(r"(?i)^charge"),             # Fransizca
-    re.compile(r"(?i)^carga"),              # Ispanyolca
-    re.compile(r"(?i)^axial[\s_]?force"),   # MTS TestSuite
-    re.compile(r"(?i)^test[\s_]?force"),    # Shimadzu EN
+    re.compile(r"(?i)^standardkraft"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^kraft"),  # Almanca: Hegewald
+    re.compile(r"(?i)^prufkraft"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^charge"),  # Fransizca
+    re.compile(r"(?i)^carga"),  # Ispanyolca
+    re.compile(r"(?i)^axial[\s_]?force"),  # MTS TestSuite
+    re.compile(r"(?i)^test[\s_]?force"),  # Shimadzu EN
 ]
 
 _DISPLACEMENT_PATTERNS: list[re.Pattern] = [
     re.compile(r"(?i)^displacement"),
     re.compile(r"(?i)^extension"),
-    re.compile(r"(?i)^extensometer"),    # DIC extensometer
-    re.compile(r"(?i)^deplasman"),       # Turkce
+    re.compile(r"(?i)^extensometer"),  # DIC extensometer
+    re.compile(r"(?i)^deplasman"),  # Turkce
     re.compile(r"(?i)^crosshead"),
     re.compile(r"(?i)^position"),
     re.compile(r"(?i)^disp"),
-    re.compile(r"(?i)^Displacement_"),   # NIST: Displacement_(mm)
-    re.compile(r"(?i)^uzama"),           # Turkce: DEVOTRANS
-    re.compile(r"(?i)^standardweg"),     # Almanca: ZwickRoell
-    re.compile(r"(?i)^weg"),             # Almanca: Hegewald
-    re.compile(r"(?i)^traversenweg"),    # Almanca: ZwickRoell
-    re.compile(r"(?i)^traverse"),        # Almanca: ZwickRoell
-    re.compile(r"(?i)^stroke"),          # Shimadzu EN
-    re.compile(r"(?i)^travel"),          # Tinius Olsen
-    re.compile(r"(?i)^allongement"),     # Fransizca
+    re.compile(r"(?i)^Displacement_"),  # NIST: Displacement_(mm)
+    re.compile(r"(?i)^uzama"),  # Turkce: DEVOTRANS
+    re.compile(r"(?i)^standardweg"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^weg"),  # Almanca: Hegewald
+    re.compile(r"(?i)^traversenweg"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^traverse"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^stroke"),  # Shimadzu EN
+    re.compile(r"(?i)^travel"),  # Tinius Olsen
+    re.compile(r"(?i)^allongement"),  # Fransizca
     re.compile(r"(?i)^axial[\s_]?displacement"),  # MTS
-    re.compile(r"(?i)^grip[\s_]?separation"),     # Shimadzu EN
+    re.compile(r"(?i)^grip[\s_]?separation"),  # Shimadzu EN
 ]
 
 _TIME_PATTERNS: list[re.Pattern] = [
     re.compile(r"(?i)^time"),
-    re.compile(r"(?i)^zeit"),            # Almanca: ZwickRoell
-    re.compile(r"(?i)^prufzeit"),        # Almanca: ZwickRoell
+    re.compile(r"(?i)^zeit"),  # Almanca: ZwickRoell
+    re.compile(r"(?i)^prufzeit"),  # Almanca: ZwickRoell
     re.compile(r"(?i)^test[\s_]?time"),  # EN: ZwickRoell
-    re.compile(r"(?i)^temps"),           # Fransizca
-    re.compile(r"(?i)^zaman"),           # Turkce: DEVOTRANS
-    re.compile(r"(?i)^t\s*\("),          # t (s), t (sec)
+    re.compile(r"(?i)^temps"),  # Fransizca
+    re.compile(r"(?i)^zaman"),  # Turkce: DEVOTRANS
+    re.compile(r"(?i)^t\s*\("),  # t (s), t (sec)
     re.compile(r"(?i)^elapsed"),
 ]
 
@@ -122,23 +123,37 @@ def _detect_separator(filepath: Path) -> str:
     except Exception:
         return ","
 
-    lines = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+    lines = [line for line in lines if line.strip() and not line.strip().startswith("#")]
     if not lines:
         return ","
 
-    # Header + ilk veri satiri
-    sample = "\n".join(lines[:5])
+    header = lines[0]
+    header_counts = {
+        "\t": header.count("\t"),
+        ";": header.count(";"),
+        ",": header.count(","),
+    }
+    header_best = max(header_counts, key=header_counts.get)
+    if header_counts[header_best] > 0:
+        return header_best
 
-    tab_count = sample.count("\t")
-    semi_count = sample.count(";")
-    comma_count = sample.count(",")
+    # Header ayirt edici degilse ilk satirlarda tutarli separator ara
+    sample_lines = lines[:5]
+    separator_scores: dict[str, tuple[int, int]] = {}
+    for candidate in ("\t", ";", ","):
+        counts = [line.count(candidate) for line in sample_lines]
+        positive_counts = [count for count in counts if count > 0]
+        if not positive_counts:
+            separator_scores[candidate] = (0, 0)
+            continue
+        mode_count = max(set(positive_counts), key=positive_counts.count)
+        support = sum(count == mode_count for count in counts)
+        separator_scores[candidate] = (support, mode_count)
 
-    # Tab en fazlaysa tab
-    if tab_count > semi_count and tab_count > comma_count:
-        return "\t"
-    # Noktali virgul en fazlaysa (German/Turkish locale)
-    if semi_count > comma_count:
-        return ";"
+    best_separator = max(separator_scores, key=separator_scores.get)
+    if separator_scores[best_separator] > (0, 0):
+        return best_separator
+
     return ","
 
 
@@ -152,7 +167,7 @@ def _parse_dimensions_from_filename(filename: str) -> tuple[float | None, float 
     Returns:
         (thickness_mm, width_mm) veya (None, None)
     """
-    m = re.search(r'T(\d+\.\d+)W(\d+\.\d+)', filename)
+    m = re.search(r"T(\d+\.\d+)W(\d+\.\d+)", filename)
     if m:
         return float(m.group(1)), float(m.group(2))
     return None, None
@@ -184,8 +199,10 @@ class DataLoader(PipelineStep):
 
         try:
             from src.pipeline.vendor_profiles import (
-                detect_vendor, detect_encoding,
+                detect_vendor,
+                detect_encoding,
             )
+
             profile = detect_vendor(self._filepath)
             if profile:
                 vendor_name = profile.name
@@ -244,7 +261,6 @@ class DataLoader(PipelineStep):
         )
 
 
-
 class SchemaDetector(PipelineStep):
     """
     Kolon adlarını analiz ederek stress/strain veya force/displacement
@@ -269,14 +285,16 @@ class SchemaDetector(PipelineStep):
         if vendor_name:
             try:
                 from src.pipeline.vendor_profiles import ALL_PROFILES
+
                 for profile in ALL_PROFILES:
                     if profile.name == vendor_name:
                         for col in columns:
                             col_clean = col.strip()
                             # Birim parantezini kaldir: "Load (kN)" -> "Load"
                             col_base = re.sub(r"\s*\(.*\)\s*$", "", col_clean)
-                            mapped = (profile.column_map.get(col_clean)
-                                      or profile.column_map.get(col_base))
+                            mapped = profile.column_map.get(col_clean) or profile.column_map.get(
+                                col_base
+                            )
                             if mapped and mapped not in detected:
                                 detected[mapped] = col
                         break
@@ -303,7 +321,6 @@ class SchemaDetector(PipelineStep):
                 break
 
         ctx.extra["detected_columns"] = detected
-
 
         # Zaman kolonunu ctx.extra'ya kaydet (StrainRateValidator icin)
         if "time" in detected:

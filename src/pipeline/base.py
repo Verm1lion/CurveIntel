@@ -1,10 +1,11 @@
 """
 CurveIntel pipeline base classes.
 
-AnalysisContext: Tüm pipeline boyunca taşınan veri ve sonuç nesnesi.
-PipelineStep: Her modülün implement etmesi gereken abstract base class.
-StepResult: Her adımın döndürdüğü sonuç.
+AnalysisContext carries state through the full pipeline.
+PipelineStep defines the abstract processing contract.
+StepResult captures each step outcome.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -25,88 +26,92 @@ from src.models.enums import (
 
 @dataclass
 class AnomalyRecord:
-    """Tespit edilen tek bir anomali kaydı."""
+    """Single detected anomaly entry."""
+
     anomaly_type: AnomalyType
-    confidence: float                    # 0.0 — 1.0 arası güven skoru
-    description: str                     # İnsan-okunabilir açıklama
-    strain_location: float | None = None # Anomalinin gerçekleştiği strain değeri
-    severity: str = "warning"            # "info", "warning", "critical"
+    confidence: float  # Confidence score in the range 0.0-1.0
+    description: str  # Human-readable description
+    strain_location: float | None = None  # Strain coordinate where it occurs
+    severity: str = "warning"  # "info", "warning", "critical"
 
 
 @dataclass
 class MechanicalProperties:
-    """Hesaplanan mekanik özellikler."""
-    elastic_modulus_gpa: float | None = None       # E (GPa)
-    yield_strength_mpa: float | None = None        # Rp0.2 veya ReH (MPa)
-    yield_lower_mpa: float | None = None           # ReL — sadece çift akma (MPa)
-    ultimate_tensile_mpa: float | None = None       # UTS / Rm (MPa)
-    elongation_at_break_pct: float | None = None    # % uzama
-    uniform_elongation_pct: float | None = None     # Necking başlangıcına kadar % uzama
-    strain_hardening_n: float | None = None         # Hollomon n değeri
-    strength_coefficient_k: float | None = None     # Hollomon K değeri (MPa)
-    toughness_mj_m3: float | None = None            # Eğri altı alan (MJ/m³)
+    """Calculated mechanical properties."""
+
+    elastic_modulus_gpa: float | None = None  # E (GPa)
+    yield_strength_mpa: float | None = None  # Rp0.2 or ReH (MPa)
+    yield_lower_mpa: float | None = None  # ReL for discontinuous yielding (MPa)
+    ultimate_tensile_mpa: float | None = None  # UTS / Rm (MPa)
+    elongation_at_break_pct: float | None = None  # Total elongation (%)
+    uniform_elongation_pct: float | None = None  # Elongation up to necking (%)
+    strain_hardening_n: float | None = None  # Hollomon n value
+    strength_coefficient_k: float | None = None  # Hollomon K value (MPa)
+    toughness_mj_m3: float | None = None  # Area under the curve (MJ/m^3)
     yield_behavior: YieldBehavior = YieldBehavior.UNDEFINED
     method_tags: dict[str, str] = field(default_factory=dict)
-    # ISO 17025 Cl. 7.8.2.1 izlenebilirlik: her hesabin ISO madde referansi
-    # Ornek: {"yield": "per ISO 6892-1:2019 Cl. 13.1", "uts": "per ISO 6892-1:2019 Cl. 3.10.1"}
+    # ISO 17025 Cl. 7.8.2.1 traceability: keep the standards reference per property.
+    # Example: {"yield": "per ISO 6892-1:2019 Cl. 13.1", "uts": "per ISO 6892-1:2019 Cl. 3.10.1"}
 
 
 @dataclass
 class SpecimenMetadata:
-    """Numune ve test bilgileri."""
+    """Specimen and test metadata."""
+
     specimen_id: str = ""
     material_type: MaterialType = MaterialType.UNKNOWN
-    cross_section_area_mm2: float | None = None   # A₀ (mm²)
-    gauge_length_mm: float | None = None          # L₀ (mm)
-    width_mm: float | None = None                  # Genişlik (mm)
-    thickness_mm: float | None = None              # Kalınlık (mm)
-    test_speed_mm_min: float | None = None         # Test hızı (mm/min)
-    temperature_c: float | None = None             # Sıcaklık (°C)
+    cross_section_area_mm2: float | None = None  # A0 (mm^2)
+    gauge_length_mm: float | None = None  # L0 (mm)
+    width_mm: float | None = None  # Width (mm)
+    thickness_mm: float | None = None  # Thickness (mm)
+    test_speed_mm_min: float | None = None  # Crosshead speed (mm/min)
+    temperature_c: float | None = None  # Temperature (degC)
     source_file: str = ""
-    test_standard: str = ""                        # Örn: "ISO 6892-1", "ASTM E8"
+    test_standard: str = ""  # Example: "ISO 6892-1", "ASTM E8"
 
 
 @dataclass
 class AnalysisContext:
     """
-    Pipeline boyunca taşınan merkezi veri nesnesi.
+    Central data object shared across the full pipeline.
 
-    Her PipelineStep bu nesneyi alır, üzerinde çalışır ve geri döndürür.
-    Böylece modüller arası veri paylaşımı tek bir nesne üzerinden yapılır.
+    Each PipelineStep receives this object, mutates it, and returns a StepResult.
+    Shared state across modules lives in one explicit container.
     """
-    # ── Ham veri ──
+
+    # Raw input data
     raw_df: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    # ── İşlenmiş veri ──
+    # Processed engineering data
     stress: np.ndarray = field(default_factory=lambda: np.array([]))
     strain: np.ndarray = field(default_factory=lambda: np.array([]))
     stress_type: StressStrainType = StressStrainType.ENGINEERING
 
-    # ── Gerçek (true) stress-strain (opsiyonel) ──
+    # Optional true stress-strain representation
     true_stress: np.ndarray = field(default_factory=lambda: np.array([]))
     true_strain: np.ndarray = field(default_factory=lambda: np.array([]))
 
-    # ── Metadata ──
+    # Metadata
     metadata: SpecimenMetadata = field(default_factory=SpecimenMetadata)
 
-    # ── Sonuçlar ──
+    # Computed outputs
     properties: MechanicalProperties = field(default_factory=MechanicalProperties)
     anomalies: list[AnomalyRecord] = field(default_factory=list)
 
-    # ── Pipeline log ──
+    # Per-step execution log
     step_results: list[StepResult] = field(default_factory=list)
 
-    # ── Ek veri (modüller arası paylaşım) ──
+    # Shared scratch space between modules
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
     def has_data(self) -> bool:
-        """Stress/strain verisi yüklü mü?"""
+        """Return whether stress/strain arrays are populated."""
         return len(self.stress) > 0 and len(self.strain) > 0
 
     @property
     def n_points(self) -> int:
-        """Veri noktası sayısı."""
+        """Return the number of stress-strain points."""
         return len(self.stress)
 
     def add_anomaly(
@@ -117,7 +122,7 @@ class AnalysisContext:
         strain_location: float | None = None,
         severity: str = "warning",
     ) -> None:
-        """Anomali kaydı ekle."""
+        """Append an anomaly record to the context."""
         self.anomalies.append(
             AnomalyRecord(
                 anomaly_type=anomaly_type,
@@ -131,7 +136,8 @@ class AnalysisContext:
 
 @dataclass
 class StepResult:
-    """Bir pipeline adımının sonucu."""
+    """Execution result for one pipeline step."""
+
     step_name: str
     status: StepStatus
     message: str = ""
@@ -140,30 +146,30 @@ class StepResult:
 
 class PipelineStep(ABC):
     """
-    Tüm pipeline modüllerinin base class'ı.
+    Base class for all pipeline modules.
 
-    Her modül:
-    1. name property'sini tanımlar
-    2. process(context) metodunu implement eder
-    3. StepResult döndürür
+    Each module:
+    1. Defines `name`
+    2. Implements `process(context)`
+    3. Returns a `StepResult`
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Adım adı (loglama ve raporlama için)."""
+        """Step name used in logs and reports."""
         ...
 
     @abstractmethod
     def process(self, ctx: AnalysisContext) -> StepResult:
         """
-        Ana işlem metodu.
+        Run the primary step logic.
 
         Args:
-            ctx: Pipeline context — veri bu nesne üzerinde okunur/yazılır.
+            ctx: Pipeline context object used for reads and writes.
 
         Returns:
-            StepResult: Adımın sonucu (success/warning/failure).
+            StepResult: Outcome of the step (`success`, `warning`, `failure`).
         """
         ...
 
@@ -179,10 +185,9 @@ class PipelineStep(ABC):
 
 class Pipeline:
     """
-    Sıralı pipeline çalıştırıcısı.
+    Sequential pipeline runner.
 
-    Adımları sırasıyla çalıştırır. FAILURE durumunda durur,
-    WARNING durumunda devam eder.
+    Executes steps in order, stops on failure, and continues through warnings.
     """
 
     def __init__(self, steps: list[PipelineStep] | None = None):
@@ -193,7 +198,7 @@ class Pipeline:
         return self
 
     def run(self, ctx: AnalysisContext) -> AnalysisContext:
-        """Tüm adımları sırasıyla çalıştır."""
+        """Run all steps in order."""
         import time
 
         for step in self.steps:
@@ -211,7 +216,7 @@ class Pipeline:
             ctx.step_results.append(result)
 
             if result.status == StepStatus.FAILURE:
-                # Kritik hata — pipeline durur
+                # Stop the pipeline on a hard failure.
                 break
 
         return ctx

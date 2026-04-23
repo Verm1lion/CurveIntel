@@ -1,23 +1,23 @@
 """
-CurveIntel — Katman 3: Feature Extraction (ISO 6892-1:2019 uyumlu).
+CurveIntel - Layer 3: Feature extraction (ISO 6892-1:2019 aligned).
 
-Stress-strain egrisinden mekanik ozellikleri otomatik hesaplayan moduller.
-Giris: AnalysisContext.stress / .strain (temiz, esit aralikli)
-Cikis: AnalysisContext.properties (MechanicalProperties)
+Modules that derive mechanical properties from the stress-strain curve.
+Input: AnalysisContext.stress / .strain (cleaned, evenly spaced)
+Output: AnalysisContext.properties (MechanicalProperties)
 
-Hesaplanan ozellikler:
-  - E (GPa): Elastik modul — OLS birincil, RANSAC on-filtre (Annex G)
-  - Rp0.2 / ReH / ReL (MPa): Akma dayanimi — ISO A.3.2 iki-kosullu test
-  - UTS / Rm (MPa): Cekme dayanimi — SG filtrelenmis max + dual storage
-  - At (%): Toplam uzama (kirilmada) — Annex A.3.6.1 force-drop
-  - Ag (%): Uniform elongation — Considere kriteri
-  - n: Strain hardening eksponani (Hollomon, ISO 10275)
-  - Ut (MJ/m3): Modulus of toughness (supplementary)
+Calculated properties:
+  - E (GPa): elastic modulus via OLS with RANSAC pre-filtering (Annex G)
+  - Rp0.2 / ReH / ReL (MPa): yield strength via ISO A.3.2 logic
+  - UTS / Rm (MPa): tensile strength via SG-filtered maximum + dual storage
+  - At (%): total elongation at fracture via Annex A.3.6.1 force-drop
+  - Ag (%): uniform elongation via the Considere criterion
+  - n: strain-hardening exponent (Hollomon, ISO 10275)
+  - Ut (MJ/m3): modulus of toughness (supplementary)
 """
+
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import savgol_filter
 from sklearn.linear_model import RANSACRegressor
 
 from src.models.enums import AnomalyType, YieldBehavior
@@ -47,13 +47,13 @@ class ElasticModulusDetector(PipelineStep):
 
     def __init__(
         self,
-        r1_fraction: float = 0.10,    # %10 yield_ref
-        r2_fraction: float = 0.40,    # %40 yield_ref (Annex G)
-        min_n_points: int = 50,        # §G.3.1.3
-        min_r2: float = 0.9995,        # §G.6.2
-        max_sm_rel: float = 1.0,       # §G.6.2 (%)
-        max_iterations: int = 4,       # E ↔ Rp0.2 iterasyon limiti
-        convergence_tol: float = 1e-4, # Yakinlasma toleransi
+        r1_fraction: float = 0.10,  # %10 yield_ref
+        r2_fraction: float = 0.40,  # %40 yield_ref (Annex G)
+        min_n_points: int = 50,  # §G.3.1.3
+        min_r2: float = 0.9995,  # §G.6.2
+        max_sm_rel: float = 1.0,  # §G.6.2 (%)
+        max_iterations: int = 4,  # E ↔ Rp0.2 iterasyon limiti
+        convergence_tol: float = 1e-4,  # Yakinlasma toleransi
     ):
         self._r1_frac = r1_fraction
         self._r2_frac = r2_fraction
@@ -130,10 +130,11 @@ class ElasticModulusDetector(PipelineStep):
                 n_ols = len(X_ols)
 
             from scipy.stats import linregress
+
             result = linregress(X_ols, y_ols)
             slope = result.slope
             intercept = result.intercept
-            r2 = result.rvalue ** 2
+            r2 = result.rvalue**2
             sm_rel = (result.stderr / abs(slope) * 100) if slope != 0 else float("inf")
 
             current_result = {
@@ -163,9 +164,7 @@ class ElasticModulusDetector(PipelineStep):
                     idx = sign_changes[0]
                     d0, d1 = diff[idx], diff[idx + 1]
                     frac = d0 / (d0 - d1) if (d0 - d1) != 0 else 0.5
-                    new_yield_ref = float(
-                        stress[idx] + frac * (stress[idx + 1] - stress[idx])
-                    )
+                    new_yield_ref = float(stress[idx] + frac * (stress[idx + 1] - stress[idx]))
 
                     # Yakinlasma testi
                     if abs(new_yield_ref - yield_ref) / max(yield_ref, 1e-6) < self._tol:
@@ -210,9 +209,7 @@ class ElasticModulusDetector(PipelineStep):
         ctx.extra["elastic_iterations"] = best_result["iteration"] + 1
 
         # Method tag
-        ctx.properties.method_tags["elastic_modulus"] = (
-            "per ISO 6892-1:2019 Annex G, OLS primary"
-        )
+        ctx.properties.method_tags["elastic_modulus"] = "per ISO 6892-1:2019 Annex G, OLS primary"
 
         # Kalite degerlendirmesi
         if r2 >= self._min_r2 and sm_rel <= self._max_sm_rel:
@@ -224,7 +221,7 @@ class ElasticModulusDetector(PipelineStep):
 
         return self._success(
             f"E = {e_gpa:.1f} GPa (R2={r2:.6f}, Sm(rel)={sm_rel:.2f}%, "
-            f"N={n_ols}, iter={best_result['iteration']+1}, kalite: {quality})"
+            f"N={n_ols}, iter={best_result['iteration'] + 1}, kalite: {quality})"
         )
 
     def _sliding_window_fit(
@@ -262,7 +259,7 @@ class ElasticModulusDetector(PipelineStep):
 
             try:
                 res = linregress(X_w, y_w)
-                r2 = res.rvalue ** 2
+                r2 = res.rvalue**2
                 sm_rel = (res.stderr / abs(res.slope) * 100) if res.slope != 0 else float("inf")
 
                 if best is None or sm_rel < best["sm_rel"]:
@@ -308,11 +305,11 @@ class YieldDetector(PipelineStep):
     def __init__(
         self,
         offset: float = 0.002,
-        drop_threshold: float = 0.005,       # >= %0.5 kuvvet dususu
-        window_strain: float = 0.0005,        # >= %0.05 strain penceresi
-        transient_mask_strain: float = 0.0005, # %0.05 transient maskeleme
-        use_clause12_shortcut: bool = False,   # Cl.12 ReL kisayolu
-        clause12_window: float = 0.0025,       # %0.25 strain (Cl.12)
+        drop_threshold: float = 0.005,  # >= %0.5 kuvvet dususu
+        window_strain: float = 0.0005,  # >= %0.05 strain penceresi
+        transient_mask_strain: float = 0.0005,  # %0.05 transient maskeleme
+        use_clause12_shortcut: bool = False,  # Cl.12 ReL kisayolu
+        clause12_window: float = 0.0025,  # %0.25 strain (Cl.12)
     ):
         self._offset = offset
         self._drop_threshold = drop_threshold
@@ -341,9 +338,7 @@ class YieldDetector(PipelineStep):
             reh_value, reh_idx = reh_result
 
             # ── Adim 2: ReL Tespiti ──
-            rel_value, rel_idx, rel_method = self._find_rel(
-                stress, strain, reh_idx
-            )
+            rel_value, rel_idx, rel_method = self._find_rel(stress, strain, reh_idx)
 
             # ── Adim 3: Ae (Luders uzamasi) tahmini ──
             ae_pct = self._estimate_ae(stress, strain, reh_idx, rel_value, ctx)
@@ -384,9 +379,7 @@ class YieldDetector(PipelineStep):
         # ── Adim 4: Surekli akma -> Rp0.2 (0.2% offset) ──
         return self._find_rp02(ctx, stress, strain)
 
-    def _find_reh(
-        self, stress: np.ndarray, strain: np.ndarray
-    ) -> tuple[float, int] | None:
+    def _find_reh(self, stress: np.ndarray, strain: np.ndarray) -> tuple[float, int] | None:
         """
         ISO 6892-1:2019 Annex A.3.2 iki-kosullu ReH tespiti.
 
@@ -456,10 +449,7 @@ class YieldDetector(PipelineStep):
         # Clause 12 kisayolu
         if self._use_clause12:
             cl12_end_strain = strain[reh_idx] + self._clause12_window
-            cl12_mask = (
-                (post_reh_strain >= strain[reh_idx]) &
-                (post_reh_strain <= cl12_end_strain)
-            )
+            cl12_mask = (post_reh_strain >= strain[reh_idx]) & (post_reh_strain <= cl12_end_strain)
             if np.any(cl12_mask):
                 cl12_stress = post_reh_stress[cl12_mask]
                 # Transient'i atlayarak minimum bul
@@ -584,7 +574,6 @@ class YieldDetector(PipelineStep):
         return self._success(f"Rp0.2 = {rp02:.1f} MPa (parallel-line offset)")
 
 
-
 class UTSDetector(PipelineStep):
     """
     Cekme dayanimi (UTS / Rm) hesaplama — ISO 6892-1:2019 Cl. 3.10.1.
@@ -650,9 +639,7 @@ class UTSDetector(PipelineStep):
                 f"Komsuluk sapmasi %{deviation_pct:.1f} - olasi spike/artefakt."
             )
 
-        return self._success(
-            f"UTS = {uts_value:.1f} MPa (strain={uts_strain:.4f})"
-        )
+        return self._success(f"UTS = {uts_value:.1f} MPa (strain={uts_strain:.4f})")
 
 
 class ElongationDetector(PipelineStep):
@@ -671,9 +658,9 @@ class ElongationDetector(PipelineStep):
 
     def __init__(
         self,
-        fm_threshold: float = 0.02,    # %2 Fm esigi
-        accel_factor: float = 5.0,     # 5x ivme kriteri
-        min_persistence: int = 1,      # en az 1 ardisik noktada saglanmali
+        fm_threshold: float = 0.02,  # %2 Fm esigi
+        accel_factor: float = 5.0,  # 5x ivme kriteri
+        min_persistence: int = 1,  # en az 1 ardisik noktada saglanmali
     ):
         self._fm_threshold = fm_threshold
         self._accel_factor = accel_factor
@@ -713,9 +700,7 @@ class ElongationDetector(PipelineStep):
 
             # compound-a: 5x ivme AND %2 esik
             is_compound_a = (
-                df_prev > 0 and
-                df_curr > self._accel_factor * df_prev and
-                f_curr < threshold_2pct
+                df_prev > 0 and df_curr > self._accel_factor * df_prev and f_curr < threshold_2pct
             )
 
             # standalone-b: sadece %2 esik
@@ -751,9 +736,7 @@ class ElongationDetector(PipelineStep):
             "per ISO 6892-1:2019 Annex A.3.6.1, force-drop method"
         )
 
-        return self._success(
-            f"At = {at_pct:.1f}% (criterion: {criterion_triggered})"
-        )
+        return self._success(f"At = {at_pct:.1f}% (criterion: {criterion_triggered})")
 
 
 class NeckingDetector(PipelineStep):
@@ -845,9 +828,7 @@ class NeckingDetector(PipelineStep):
         ctx.extra["necking_idx"] = necking_global_idx
 
         # Method tag
-        ctx.properties.method_tags["uniform_elongation"] = (
-            "Considere criterion, supplementary"
-        )
+        ctx.properties.method_tags["uniform_elongation"] = "Considere criterion, supplementary"
 
         return self._success(
             f"Ag = {uniform_elong:.2f}% "
@@ -947,8 +928,7 @@ class StrainHardeningFitter(PipelineStep):
         )
 
         return self._success(
-            f"Hollomon: n={n_value:.3f}, K={k_value:.1f} MPa "
-            f"(R2={r2:.4f}, N={n_fit_points})"
+            f"Hollomon: n={n_value:.3f}, K={k_value:.1f} MPa (R2={r2:.4f}, N={n_fit_points})"
         )
 
 
@@ -983,10 +963,12 @@ class ToughnessCalculator(PipelineStep):
         start = positive_indices[0]
         end = positive_indices[-1] + 1
 
-        toughness = float(np.trapz(
-            ctx.stress[start:end],
-            ctx.strain[start:end],
-        ))
+        toughness = float(
+            np.trapezoid(
+                ctx.stress[start:end],
+                ctx.strain[start:end],
+            )
+        )
 
         ctx.properties.toughness_mj_m3 = toughness
 
@@ -1051,6 +1033,7 @@ class StrainRateValidator(PipelineStep):
         # Interpolasyon ile esitle
         if len(time_arr) != len(strain):
             from scipy.interpolate import interp1d
+
             # Ham strain verisinden resampled strain'e time interpolasyonu
             raw_n = len(time_arr)
             raw_indices = np.linspace(0, 1, raw_n)
@@ -1125,24 +1108,19 @@ class StrainRateValidator(PipelineStep):
         ctx.extra["strain_rate_all_ok"] = e_ok and y_ok and p_ok
 
         # Method tag
-        ctx.properties.method_tags["test_method"] = (
-            f"ISO 6892-1:2019 {report_code}"
-        )
+        ctx.properties.method_tags["test_method"] = f"ISO 6892-1:2019 {report_code}"
 
         violations = []
         if not e_ok:
-            violations.append(f"elastik: Range {e_rng} sapma={e_dev*100:.1f}%")
+            violations.append(f"elastik: Range {e_rng} sapma={e_dev * 100:.1f}%")
         if not y_ok:
-            violations.append(f"akma: Range {y_rng} sapma={y_dev*100:.1f}%")
+            violations.append(f"akma: Range {y_rng} sapma={y_dev * 100:.1f}%")
         if not p_ok:
-            violations.append(f"akma_sonrasi: Range {p_rng} sapma={p_dev*100:.1f}%")
+            violations.append(f"akma_sonrasi: Range {p_rng} sapma={p_dev * 100:.1f}%")
 
         if violations:
             return self._warning(
-                f"Rapor kodu: {report_code}. "
-                f"Tolerans asimi: {'; '.join(violations)}"
+                f"Rapor kodu: {report_code}. Tolerans asimi: {'; '.join(violations)}"
             )
 
-        return self._success(
-            f"Rapor kodu: {report_code} (tum bolgeler ±20% tolerans icinde)"
-        )
+        return self._success(f"Rapor kodu: {report_code} (tum bolgeler ±20% tolerans icinde)")

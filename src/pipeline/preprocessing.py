@@ -1,10 +1,11 @@
 """
-CurveIntel — Katman 2: Signal Preprocessing.
+CurveIntel - Layer 2: Signal preprocessing.
 
-Gürültü temizleme, toe region düzeltme ve resampling modülleri.
-Giriş: AnalysisContext.stress / .strain (ham)
-Çıkış: AnalysisContext.stress / .strain (temiz, eşit aralıklı)
+Noise cleanup, toe-region correction, and resampling modules.
+Input: AnalysisContext.stress / .strain (raw)
+Output: AnalysisContext.stress / .strain (cleaned, evenly spaced)
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -62,9 +63,7 @@ class SpikeFilter(PipelineStep):
                     severity="info",
                 )
 
-            return self._warning(
-                f"{n_spikes} spike tespit edildi ve median değerle değiştirildi."
-            )
+            return self._warning(f"{n_spikes} spike tespit edildi ve median değerle değiştirildi.")
 
         return self._success("Spike bulunamadı.")
 
@@ -106,14 +105,11 @@ class ToeCompensation(PipelineStep):
         max_stress = np.max(stress)
 
         # Elastik bölge maskesi (stress'in %10-40'ı arası)
-        mask = (stress >= max_stress * self._fit_start) & (
-            stress <= max_stress * self._fit_end
-        )
+        mask = (stress >= max_stress * self._fit_start) & (stress <= max_stress * self._fit_end)
 
         if np.sum(mask) < 10:
             return self._warning(
-                "Elastik bölgede yeterli veri noktası yok. "
-                "Toe düzeltmesi atlandı."
+                "Elastik bölgede yeterli veri noktası yok. Toe düzeltmesi atlandı."
             )
 
         X = strain[mask].reshape(-1, 1)
@@ -169,8 +165,7 @@ class ToeCompensation(PipelineStep):
         ctx.extra["toe_elastic_slope"] = slope
 
         return self._success(
-            f"Toe düzeltmesi uygulandı. x-intercept={x_intercept:.6f}, "
-            f"{n_removed} nokta silindi."
+            f"Toe düzeltmesi uygulandı. x-intercept={x_intercept:.6f}, {n_removed} nokta silindi."
         )
 
 
@@ -297,8 +292,7 @@ class SavitzkyGolayFilter(PipelineStep):
             )
 
         return self._success(
-            f"SG filtresi uygulandı (w={window}, p={self._polyorder}). "
-            f"Peak kayıp: {loss_pct:.3f}%"
+            f"SG filtresi uygulandı (w={window}, p={self._polyorder}). Peak kayıp: {loss_pct:.3f}%"
         )
 
 
