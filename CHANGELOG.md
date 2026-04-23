@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Baseline Hardening:** GitHub Actions PostgreSQL smoke job for the DB/auth/audit flow
 - **Examples:** `examples/sample_nist.csv` compact smoke-test fixture
+- **Admin Backoffice:** User management API/UI, filtered audit inspection, and role-aware dashboard workspace states
 
 ### Changed
 - **Runtime Documentation:** README, env template, and guide copy aligned with the database-backed persistence model
 - **Web UI Copy:** Guide and dashboard legal text aligned with persisted results, RBAC, and audit-trail behavior
 - **Repo Hygiene:** Coverage artifacts are now ignored by default
+- **Dashboard:** Admins can manage users and audit views without leaving the main app surface
 
 ## [2.0.0] - 2026-04-22
 

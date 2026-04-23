@@ -83,6 +83,22 @@ class UserRead(BaseModel):
     last_login_at: datetime | None = None
 
 
+class UserUpdate(BaseModel):
+    """Validated input for admin-managed user updates."""
+
+    full_name: NON_EMPTY_255 | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def require_at_least_one_change(self) -> "UserUpdate":
+        """Reject empty update payloads."""
+
+        if self.full_name is None and self.role is None and self.is_active is None:
+            raise ValueError("at least one user field must be provided.")
+        return self
+
+
 class AnalysisSnapshotCreate(BaseModel):
     """Validated snapshot payload used to persist an analysis result."""
 

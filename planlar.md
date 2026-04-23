@@ -10,7 +10,7 @@
 - [x] Faz 3 tabani kodda var: auth/api/db testleri, coverage hedefi asildi
 - [x] Web uygulamasi artik DB-authoritative calisiyor
 - [x] Docker giris akisi migration-first mantigina sahip
-- [/] Repo halen buyuk bir mixed working tree icinde
+- [x] Repo A/B/C paketlerine ayrildi ve ayri commit akislari olusturuldu
 - [x] Canli Docker/PostgreSQL smoke dogrulamasi tamamlandi
 
 ---
@@ -83,7 +83,7 @@
 ### 3.5.1 Repo Hijyeni
 - [x] `.gitignore` coverage artifactlarini kapsiyor
 - [x] Mixed diff icindeki baseline-disi degisiklikler siniflandirildi
-- [ ] Baseline tek feature-set olarak commitlenecek
+- [x] Baseline tek feature-set olarak commitlendi
 
 ### 3.5.2 Runtime Truth Alignment
 - [x] README env/runtime contract gercek davranisla hizalandi
@@ -105,9 +105,30 @@
 ### 3.5.4 Commit Extraction Plani
 - [x] Baseline'a girecek dosya listesi netlesti
 - [x] Ikinci faza ayrilacak kalite/script/test diff'i netlesti
-- [ ] Sadece baseline dosyalari stage edilip tekrar gozden gecirilecek
-- [ ] Baseline icin tek release-candidate commit hazirlanacak
-- [ ] Follow-up pipeline kalite diff'i ayri commit veya ayri branch olarak ele alinacak
+- [x] Sadece baseline dosyalari stage edilip tekrar gozden gecirildi
+- [x] Baseline icin tek release-candidate commit hazirlandi
+- [x] Follow-up pipeline kalite diff'i ayri commit olarak ele alindi
+
+---
+
+## Faz 4: Admin Backoffice
+
+### 4.1 User Management
+- [x] `GET /api/users`
+- [x] `PATCH /api/users/{id}`
+- [x] son aktif admin'i koruyan guard
+- [x] dashboard icinde kullanici yonetimi tablosu
+
+### 4.2 Audit Review Surface
+- [x] action/status/actor/entity filtreleri
+- [x] audit detay gorunumu (metadata + before/after snapshot)
+- [x] no-data admin durumunda da audit gorunumu
+
+### 4.3 Role-aware Dashboard
+- [x] admin workspace copy
+- [x] analyst workspace copy
+- [x] viewer read-only workspace copy
+- [x] role'e gore action ve management yuzeyi ayrimi
 
 ---
 
@@ -153,40 +174,41 @@
 ## Commit Paketleri
 
 ### Paket A: `baseline-hardening-v2-rc`
-- [ ] Amac: DB/auth/audit/web refactor'unu tek release-candidate commit olarak sabitlemek
-- [ ] Dahil edilecekler:
+- [x] Amac: DB/auth/audit/web refactor'unu tek release-candidate commit olarak sabitlemek
+- [x] Commit: `9be6ffa` (`Stabilize DB auth audit baseline`)
+- [x] Dahil edilenler:
   `pyproject.toml`, `src/__init__.py`, `src/curveintel/**`, `alembic/**`, `alembic.ini`, `web/app.py`, `web/templates/login.html`, `web/templates/dashboard.html`, `web/templates/guide.html`, `tests/test_db.py`, `tests/test_auth.py`, `tests/test_api.py`, `tests/test_postgres_smoke.py`, `tests/conftest.py`, `tests/support.py`, `tests/__init__.py`, `Dockerfile`, `docker-compose.yml`, `docker-entrypoint.sh`, `.env.example`, `.gitignore`, `.github/workflows/ci.yml`, `README.md`, `CHANGELOG.md`, `docs/vendor_integration.md`, `examples/README.md`, `examples/sample_nist.csv`, `planlar.md`
-- [ ] Gate:
+- [x] Gate:
   `ruff check .`, `ruff format --check .`, `pytest -q`, `pytest --cov=src --cov-report=term-missing -q`, canli `docker compose` + PostgreSQL smoke zaten dogrulandi
 
 ### Paket B: `pipeline-quality-followup`
-- [ ] Amac: runtime-disi pipeline kalite borcunu ve manuel smoke script temizligini ayri bir degisiklik seti yapmak
-- [ ] Dahil edilecekler:
+- [x] Amac: runtime-disi pipeline kalite borcunu ve manuel smoke script temizligini ayri bir degisiklik seti yapmak
+- [x] Commit: `5313c18` (`Clean up pipeline quality follow-up`)
+- [x] Dahil edilenler:
   `batch_analyze.py`, `src/models/enums.py`, `src/pipeline/anomaly.py`, `src/pipeline/base.py`, `src/pipeline/batch_qc.py`, `src/pipeline/extraction.py`, `src/pipeline/ingestion.py`, `src/pipeline/preprocessing.py`, `src/pipeline/reporting.py`, `src/pipeline/vendor_profiles.py`, `tests/diagnostic_all_csv.py`, `tests/test_batch_curated.py`, `tests/test_nist.py`, `tests/test_pipeline.py`, `tests/test_pipeline_steps.py`, `tests/test_report.py`, `tests/test_useries.py`, `tests/test_validation.py`
-- [ ] Gate:
+- [x] Gate:
   pipeline testlerinin ve manuel smoke script'lerinin role/runtime baseline'ini kirletmedigi tekrar dogrulanacak
 
 ### Paket C: `admin-backoffice-phase-1`
-- [ ] Amac: baseline sabitlendikten sonra ilk urunsel gelistirme fazina gecmek
-- [ ] Hedefler:
+- [x] Amac: baseline sabitlendikten sonra ilk urunsel gelistirme fazina gecmek
+- [x] Hedefler:
   kullanici listeleme/yonetme, audit filtreleme ve detay gorunumu, role-aware dashboard sadelestirmesi
 
 ---
 
-## Siradaki Uygulama Sirasi
+## Sonraki Mantikli Adimlar
 
-1. Working tree icinde baseline-disi degisiklikleri fiilen ayir.
-2. DB/auth/audit baseline'ini tek bir commit/release adayi olarak sabitle.
-3. Ayrilan pipeline/reporting/test diff'lerini ikinci bir takip fazina tasi.
-4. Sonrasinda admin/backoffice fazina gec:
-   - kullanici listeleme/yonetme
-   - audit filtreleme/detay UI
-   - role-aware dashboard sadelestirmesi
+1. `Paket C` commitini tamamla ve repo'yu temiz working tree durumuna getir.
+2. `v2.0.0` tag/release stratejisini yeni commit zincirine gore netlestir.
+3. GitHub repo ops islerini kapat:
+   - topics/description/discussions
+   - branch protection
+   - issue labels / good-first-issues
+4. Demo deployment ve release notlarini hazirla.
 
 ### Uygulama Notu
-- Baseline commit'i cikmadan yeni feature acilmayacak.
-- `Paket A` tamamlanmadan `Paket B` ile karisik commit yapilmayacak.
-- `Paket B` gerekirse ayri branch veya ayri commit serisi olarak tasinacak.
+- A ve B commitleri ayrildi; C de ayri feature commit olarak kapanacak.
+- Sonraki teknik isler artik baseline stabilizasyonu degil, release/ops odakli.
 
 ---
 
@@ -202,9 +224,9 @@
 
 ## Kill Criteria Notu
 
-- [/] K3 runtime tarafinda dogrulandi: PostgreSQL + audit trail + coklu vendor profili calisiyor
-- [ ] K3 release-ready baseline commit sonrasinda tamamen kapanacak
+- [x] K3 runtime tarafinda dogrulandi: PostgreSQL + audit trail + coklu vendor profili calisiyor
+- [x] K3 baseline commit zinciri olusturularak kapatildi
 
 ---
 
-**Son guncelleme:** 23 Nisan 2026 - Docker/PostgreSQL smoke, browser smoke ve baseline/follow-up scope ayrimi tamamlandi
+**Son guncelleme:** 23 Nisan 2026 - Paket A/B commitlendi, Paket C kodu tamamlandi, release/ops kuyruğu kaldı

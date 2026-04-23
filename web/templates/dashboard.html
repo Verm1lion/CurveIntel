@@ -237,6 +237,29 @@
     {% endif %}
 </div>
 
+<section class="glass-panel rounded-2xl p-5 md:p-6 border border-outline-variant/15 fade-up">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined text-primary text-[18px]">badge</span>
+                <span class="text-xs font-semibold tracking-[0.24em] uppercase text-on-surface-variant">{{ workspace_copy.label }}</span>
+            </div>
+            <p class="text-sm text-on-surface max-w-3xl">{{ workspace_copy.summary }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-[11px]">
+            <span class="px-3 py-1 rounded-full border border-outline-variant/20 bg-surface-container text-on-surface-variant">
+                Role: <strong class="text-on-surface">{{ current_user.role|upper }}</strong>
+            </span>
+            <span class="px-3 py-1 rounded-full border border-outline-variant/20 bg-surface-container text-on-surface-variant">
+                Upload: <strong class="{% if can_upload %}text-tertiary-fixed{% else %}text-error{% endif %}">{% if can_upload %}enabled{% else %}disabled{% endif %}</strong>
+            </span>
+            <span class="px-3 py-1 rounded-full border border-outline-variant/20 bg-surface-container text-on-surface-variant">
+                Management: <strong class="{% if can_manage_results %}text-tertiary-fixed{% else %}text-error{% endif %}">{% if can_manage_results %}admin only{% else %}read only{% endif %}</strong>
+            </span>
+        </div>
+    </div>
+</section>
+
 {% if not has_data %}
 <!-- EMPTY STATE -->
 <div class="glass-panel rounded-2xl p-16 text-center">
@@ -607,65 +630,290 @@
 </div>
 {% endif %}
 
-{% if can_manage_results and audit_logs|length > 0 %}
-<div class="glass-panel rounded-xl p-0 overflow-hidden mt-8 fade-up">
-    <div class="p-6 border-b border-outline-variant/15 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-        <div>
-            <h2 class="text-lg font-semibold text-on-surface">Audit Trail</h2>
-            <p class="text-xs text-on-surface-variant mt-1">{{ audit_logs|length }} latest append-only events</p>
+{% if can_manage_results %}
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-8 mt-8">
+    <div class="xl:col-span-5 glass-panel rounded-xl p-0 overflow-hidden fade-up">
+        <div class="p-6 border-b border-outline-variant/15">
+            <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
         </div>
-        <a href="/api/audit-logs" target="_blank" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-xs font-medium">
-            <span class="material-symbols-outlined text-[14px]">open_in_new</span> Open JSON
-        </a>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                        <th class="py-3 px-5 font-medium">User</th>
+                        <th class="py-3 px-4 font-medium">Role</th>
+                        <th class="py-3 px-4 font-medium">Active</th>
+                        <th class="py-3 px-4 font-medium">Last Login</th>
+                        <th class="py-3 px-4 font-medium text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/5">
+                    {% for user in admin_users %}
+                    <tr class="hover:bg-surface-container/20 transition-colors">
+                        <td class="py-3 px-5">
+                            <div class="flex flex-col">
+                                <span class="text-sm text-on-surface">{{ user.full_name }}</span>
+                                <span class="text-[10px] text-on-surface-variant">{{ user.email }}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4">
+                            <select id="user-role-{{ user.id }}" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container px-2 py-1.5 text-xs text-on-surface">
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="analyst" {% if user.role == 'analyst' %}selected{% endif %}>Analyst</option>
+                                <option value="viewer" {% if user.role == 'viewer' %}selected{% endif %}>Viewer</option>
+                            </select>
+                        </td>
+                        <td class="py-3 px-4">
+                            <label class="inline-flex items-center gap-2 text-xs text-on-surface-variant">
+                                <input id="user-active-{{ user.id }}" type="checkbox" class="rounded border-outline-variant/20 bg-surface-container" {% if user.is_active %}checked{% endif %}>
+                                <span>{% if user.is_active %}Enabled{% else %}Disabled{% endif %}</span>
+                            </label>
+                        </td>
+                        <td class="py-3 px-4 text-xs text-on-surface-variant font-mono">
+                            {{ user.last_login_at[:19] | replace('T', ' ') if user.last_login_at else 'Never' }}
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="updateUser('{{ user.id }}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors">
+                                <span class="material-symbols-outlined text-[14px]">save</span> Save
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-sm">
-            <thead>
-                <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
-                    <th class="py-3 px-6 font-medium">When</th>
-                    <th class="py-3 px-6 font-medium">Actor</th>
-                    <th class="py-3 px-6 font-medium">Action</th>
-                    <th class="py-3 px-6 font-medium">Target</th>
-                    <th class="py-3 px-6 font-medium">Status</th>
-                    <th class="py-3 px-6 font-medium">Path</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-outline-variant/5">
-                {% for log in audit_logs %}
-                <tr class="hover:bg-surface-container/20 transition-colors">
-                    <td class="py-3 px-6 text-xs font-mono text-on-surface">{{ log.occurred_at[:19] | replace('T', ' ') }}</td>
-                    <td class="py-3 px-6 text-on-surface-variant">
-                        {% if log.actor %}
-                        <div class="flex flex-col">
-                            <span class="text-on-surface text-xs">{{ log.actor.full_name }}</span>
-                            <span class="text-[10px]">{{ log.actor.email }}</span>
-                        </div>
-                        {% else %}
-                        <span class="text-xs">system</span>
-                        {% endif %}
-                    </td>
-                    <td class="py-3 px-6">
-                        <span class="text-[10px] font-semibold uppercase px-2 py-1 rounded border border-outline-variant/15 bg-surface-container">{{ log.action }}</span>
-                    </td>
-                    <td class="py-3 px-6 text-xs text-on-surface-variant">
-                        <div class="flex flex-col">
-                            <span class="text-on-surface">{{ log.entity_type }}</span>
-                            <span class="font-mono">{{ log.entity_id[:24] }}{% if log.entity_id|length > 24 %}...{% endif %}</span>
-                        </div>
-                    </td>
-                    <td class="py-3 px-6">
-                        <span class="text-[10px] font-semibold uppercase {% if log.status == 'success' %}text-tertiary-fixed{% else %}text-error{% endif %}">{{ log.status }}</span>
-                    </td>
-                    <td class="py-3 px-6 text-xs text-on-surface-variant font-mono">{{ log.event_meta.path or '-' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+    <div class="xl:col-span-7 glass-panel rounded-xl p-0 overflow-hidden fade-up">
+        <div class="p-6 border-b border-outline-variant/15 flex flex-col gap-4">
+            <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-on-surface">Audit Trail</h2>
+                    <p class="text-xs text-on-surface-variant mt-1">{{ audit_logs|length }} matching append-only events</p>
+                </div>
+                <a href="/api/audit-logs" target="_blank" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-xs font-medium">
+                    <span class="material-symbols-outlined text-[14px]">open_in_new</span> Open JSON
+                </a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <select id="audit-action" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface">
+                    <option value="">All Actions</option>
+                    <option value="create" {% if audit_filters.action == 'create' %}selected{% endif %}>Create</option>
+                    <option value="read" {% if audit_filters.action == 'read' %}selected{% endif %}>Read</option>
+                    <option value="update" {% if audit_filters.action == 'update' %}selected{% endif %}>Update</option>
+                    <option value="delete" {% if audit_filters.action == 'delete' %}selected{% endif %}>Delete</option>
+                    <option value="download" {% if audit_filters.action == 'download' %}selected{% endif %}>Download</option>
+                    <option value="login" {% if audit_filters.action == 'login' %}selected{% endif %}>Login</option>
+                    <option value="logout" {% if audit_filters.action == 'logout' %}selected{% endif %}>Logout</option>
+                    <option value="register" {% if audit_filters.action == 'register' %}selected{% endif %}>Register</option>
+                    <option value="seed" {% if audit_filters.action == 'seed' %}selected{% endif %}>Seed</option>
+                </select>
+                <select id="audit-status" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface">
+                    <option value="">All Statuses</option>
+                    <option value="success" {% if audit_filters.status == 'success' %}selected{% endif %}>Success</option>
+                    <option value="failure" {% if audit_filters.status == 'failure' %}selected{% endif %}>Failure</option>
+                </select>
+                <select id="audit-actor" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface">
+                    <option value="">All Actors</option>
+                    {% for user in admin_users %}
+                    <option value="{{ user.id }}" {% if audit_filters.actor_user_id == user.id %}selected{% endif %}>{{ user.full_name }} ({{ user.role }})</option>
+                    {% endfor %}
+                </select>
+                <select id="audit-entity-type" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface">
+                    <option value="">All Entity Types</option>
+                    <option value="user" {% if audit_filters.entity_type == 'user' %}selected{% endif %}>User</option>
+                    <option value="analysis_result" {% if audit_filters.entity_type == 'analysis_result' %}selected{% endif %}>Analysis Result</option>
+                    <option value="audit_log" {% if audit_filters.entity_type == 'audit_log' %}selected{% endif %}>Audit Log</option>
+                    <option value="report" {% if audit_filters.entity_type == 'report' %}selected{% endif %}>Report</option>
+                    <option value="system" {% if audit_filters.entity_type == 'system' %}selected{% endif %}>System</option>
+                </select>
+                <input id="audit-entity-id" type="text" value="{{ audit_filters.entity_id }}" placeholder="Entity ID" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-variant">
+                <select id="audit-limit" class="rounded-lg border border-outline-variant/20 bg-surface-container px-3 py-2 text-xs text-on-surface">
+                    <option value="12" {% if audit_filters.limit == 12 %}selected{% endif %}>12 rows</option>
+                    <option value="25" {% if audit_filters.limit == 25 %}selected{% endif %}>25 rows</option>
+                    <option value="50" {% if audit_filters.limit == 50 %}selected{% endif %}>50 rows</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="applyAuditFilters()" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-primary/90 transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">filter_alt</span> Apply Filters
+                </button>
+                <button onclick="resetAuditFilters()" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant text-xs font-medium hover:text-primary hover:bg-primary/5 transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">restart_alt</span> Reset
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                        <th class="py-3 px-6 font-medium">When</th>
+                        <th class="py-3 px-6 font-medium">Actor</th>
+                        <th class="py-3 px-6 font-medium">Action</th>
+                        <th class="py-3 px-6 font-medium">Target</th>
+                        <th class="py-3 px-6 font-medium">Status</th>
+                        <th class="py-3 px-6 font-medium">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/5">
+                    {% for log in audit_logs %}
+                    <tr class="hover:bg-surface-container/20 transition-colors align-top">
+                        <td class="py-3 px-6 text-xs font-mono text-on-surface">{{ log.occurred_at[:19] | replace('T', ' ') }}</td>
+                        <td class="py-3 px-6 text-on-surface-variant">
+                            {% if log.actor %}
+                            <div class="flex flex-col">
+                                <span class="text-on-surface text-xs">{{ log.actor.full_name }}</span>
+                                <span class="text-[10px]">{{ log.actor.email }}</span>
+                            </div>
+                            {% else %}
+                            <span class="text-xs">system</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-6">
+                            <span class="text-[10px] font-semibold uppercase px-2 py-1 rounded border border-outline-variant/15 bg-surface-container">{{ log.action }}</span>
+                        </td>
+                        <td class="py-3 px-6 text-xs text-on-surface-variant">
+                            <div class="flex flex-col">
+                                <span class="text-on-surface">{{ log.entity_type }}</span>
+                                <span class="font-mono break-all">{{ log.entity_id }}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-6">
+                            <span class="text-[10px] font-semibold uppercase {% if log.status == 'success' %}text-tertiary-fixed{% else %}text-error{% endif %}">{{ log.status }}</span>
+                        </td>
+                        <td class="py-3 px-6 text-xs text-on-surface-variant">
+                            <details class="rounded-lg border border-outline-variant/15 bg-surface-container/40 p-2">
+                                <summary class="cursor-pointer select-none text-on-surface-variant hover:text-primary">Inspect</summary>
+                                <div class="mt-3 space-y-3">
+                                    <div>
+                                        <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mb-1">Path</p>
+                                        <p class="font-mono break-all">{{ log.event_meta.path or '-' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mb-1">Metadata</p>
+                                        <pre class="whitespace-pre-wrap break-all rounded bg-surface-container-high/50 p-2 text-[10px] text-on-surface-variant">{{ log.event_meta | tojson(indent=2) }}</pre>
+                                    </div>
+                                    {% if log.before_snapshot %}
+                                    <div>
+                                        <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mb-1">Before</p>
+                                        <pre class="whitespace-pre-wrap break-all rounded bg-surface-container-high/50 p-2 text-[10px] text-on-surface-variant">{{ log.before_snapshot | tojson(indent=2) }}</pre>
+                                    </div>
+                                    {% endif %}
+                                    {% if log.after_snapshot %}
+                                    <div>
+                                        <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mb-1">After</p>
+                                        <pre class="whitespace-pre-wrap break-all rounded bg-surface-container-high/50 p-2 text-[10px] text-on-surface-variant">{{ log.after_snapshot | tojson(indent=2) }}</pre>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </details>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if audit_logs|length == 0 %}
+                    <tr>
+                        <td colspan="6" class="py-6 px-6 text-center text-sm text-on-surface-variant">No audit events match the current filters.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endif %}
 
 {% endif %}
+
+{% if can_manage_results and not has_data %}
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+    <div class="xl:col-span-5 glass-panel rounded-xl p-0 overflow-hidden fade-up">
+        <div class="p-6 border-b border-outline-variant/15">
+            <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                        <th class="py-3 px-5 font-medium">User</th>
+                        <th class="py-3 px-4 font-medium">Role</th>
+                        <th class="py-3 px-4 font-medium">Active</th>
+                        <th class="py-3 px-4 font-medium text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/5">
+                    {% for user in admin_users %}
+                    <tr class="hover:bg-surface-container/20 transition-colors">
+                        <td class="py-3 px-5">
+                            <div class="flex flex-col">
+                                <span class="text-sm text-on-surface">{{ user.full_name }}</span>
+                                <span class="text-[10px] text-on-surface-variant">{{ user.email }}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4">
+                            <select id="user-role-{{ user.id }}" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container px-2 py-1.5 text-xs text-on-surface">
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="analyst" {% if user.role == 'analyst' %}selected{% endif %}>Analyst</option>
+                                <option value="viewer" {% if user.role == 'viewer' %}selected{% endif %}>Viewer</option>
+                            </select>
+                        </td>
+                        <td class="py-3 px-4">
+                            <label class="inline-flex items-center gap-2 text-xs text-on-surface-variant">
+                                <input id="user-active-{{ user.id }}" type="checkbox" class="rounded border-outline-variant/20 bg-surface-container" {% if user.is_active %}checked{% endif %}>
+                                <span>{% if user.is_active %}Enabled{% else %}Disabled{% endif %}</span>
+                            </label>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="updateUser('{{ user.id }}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors">
+                                <span class="material-symbols-outlined text-[14px]">save</span> Save
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="xl:col-span-7 glass-panel rounded-xl p-0 overflow-hidden fade-up">
+        <div class="p-6 border-b border-outline-variant/15">
+            <h2 class="text-lg font-semibold text-on-surface">Audit Trail</h2>
+            <p class="text-xs text-on-surface-variant mt-1">{{ audit_logs|length }} latest append-only events</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="text-xs text-on-surface-variant bg-surface-container/30 border-b border-outline-variant/10">
+                        <th class="py-3 px-6 font-medium">When</th>
+                        <th class="py-3 px-6 font-medium">Actor</th>
+                        <th class="py-3 px-6 font-medium">Action</th>
+                        <th class="py-3 px-6 font-medium">Target</th>
+                        <th class="py-3 px-6 font-medium">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/5">
+                    {% for log in audit_logs %}
+                    <tr class="hover:bg-surface-container/20 transition-colors">
+                        <td class="py-3 px-6 text-xs font-mono text-on-surface">{{ log.occurred_at[:19] | replace('T', ' ') }}</td>
+                        <td class="py-3 px-6 text-xs text-on-surface-variant">{{ log.actor.full_name if log.actor else 'system' }}</td>
+                        <td class="py-3 px-6"><span class="text-[10px] font-semibold uppercase px-2 py-1 rounded border border-outline-variant/15 bg-surface-container">{{ log.action }}</span></td>
+                        <td class="py-3 px-6 text-xs text-on-surface-variant font-mono break-all">{{ log.entity_id }}</td>
+                        <td class="py-3 px-6"><span class="text-[10px] font-semibold uppercase {% if log.status == 'success' %}text-tertiary-fixed{% else %}text-error{% endif %}">{{ log.status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                    {% if audit_logs|length == 0 %}
+                    <tr>
+                        <td colspan="5" class="py-6 px-6 text-center text-sm text-on-surface-variant">No audit events available yet.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 </main>
 
 <!-- LEGAL DISCLAIMER FOOTER -->
@@ -698,6 +946,14 @@
 
 <script>
 // ── Upload Modal ──
+function getApiErrorMessage(payload, fallbackMessage) {
+    if (!payload) return fallbackMessage;
+    if (typeof payload.detail === 'string') return payload.detail;
+    if (payload.error?.message) return payload.error.message;
+    if (typeof payload.error === 'string') return payload.error;
+    return fallbackMessage;
+}
+
 async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/login';
@@ -712,8 +968,8 @@ async function deleteResult(resultId) {
         return;
     }
 
-    const payload = await response.json().catch(() => ({ error: 'Delete failed.' }));
-    alert(payload.error || payload.detail || 'Delete failed.');
+    const payload = await response.json().catch(() => null);
+    alert(getApiErrorMessage(payload, 'Delete failed.'));
 }
 
 async function clearResults() {
@@ -725,8 +981,61 @@ async function clearResults() {
         return;
     }
 
-    const payload = await response.json().catch(() => ({ error: 'Clear failed.' }));
-    alert(payload.error || payload.detail || 'Clear failed.');
+    const payload = await response.json().catch(() => null);
+    alert(getApiErrorMessage(payload, 'Clear failed.'));
+}
+
+async function updateUser(userId) {
+    const role = document.getElementById(`user-role-${userId}`).value;
+    const isActive = document.getElementById(`user-active-${userId}`).checked;
+    const response = await fetch(`/api/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, is_active: isActive }),
+    });
+
+    if (response.ok) {
+        window.location.reload();
+        return;
+    }
+
+    const payload = await response.json().catch(() => null);
+    alert(getApiErrorMessage(payload, 'User update failed.'));
+}
+
+function applyAuditFilters() {
+    const url = new URL(window.location.href);
+    const selectedResultId = url.searchParams.get('id');
+    const filters = [
+        ['audit_action', document.getElementById('audit-action').value],
+        ['audit_status', document.getElementById('audit-status').value],
+        ['audit_actor_user_id', document.getElementById('audit-actor').value],
+        ['audit_entity_type', document.getElementById('audit-entity-type').value],
+        ['audit_entity_id', document.getElementById('audit-entity-id').value.trim()],
+        ['audit_limit', document.getElementById('audit-limit').value],
+    ];
+
+    url.search = '';
+    if (selectedResultId) {
+        url.searchParams.set('id', selectedResultId);
+    }
+    filters.forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        }
+    });
+    window.location.href = url.toString();
+}
+
+function resetAuditFilters() {
+    const url = new URL(window.location.href);
+    const selectedResultId = url.searchParams.get('id');
+
+    url.search = '';
+    if (selectedResultId) {
+        url.searchParams.set('id', selectedResultId);
+    }
+    window.location.href = url.toString();
 }
 
 function showUploadModal() {
@@ -786,7 +1095,7 @@ async function uploadFile(file) {
             statusEl.textContent = 'Analysis complete! Reloading...';
             setTimeout(() => window.location.reload(), 800);
         } else {
-            statusEl.textContent = `Error: ${data.message}`;
+            statusEl.textContent = `Error: ${getApiErrorMessage(data, 'Analysis failed.')}`;
             progressBar.style.width = '0%';
         }
     } catch (err) {

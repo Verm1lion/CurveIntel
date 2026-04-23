@@ -45,7 +45,7 @@ from src.curveintel.db.repository import (
     AuditLogRepository,
     UserRepository,
 )
-from src.curveintel.db.schemas import UserRead
+from src.curveintel.db.schemas import UserRead, UserUpdate
 from src.curveintel.db.service import (
     append_audit_event,
     ensure_database_schema_ready,
@@ -315,6 +315,28 @@ def _parse_analysis_id(result_id: str) -> UUID | None:
         return None
 
 
+def _parse_uuid(raw_value: str | None) -> UUID | None:
+    """Parse optional UUID query values."""
+
+    if raw_value in {None, ""}:
+        return None
+    try:
+        return UUID(raw_value)
+    except ValueError:
+        return None
+
+
+def _parse_enum_member(enum_cls: type[Any], raw_value: str | None) -> Any | None:
+    """Parse optional enum query values without raising on invalid HTML filters."""
+
+    if raw_value in {None, ""}:
+        return None
+    try:
+        return enum_cls(raw_value)
+    except ValueError:
+        return None
+
+
 def _get_recent_results_payloads(db: Session, limit: int = 10) -> list[dict[str, Any]]:
     """Load recent persisted results."""
 
@@ -403,21 +425,72 @@ def _serialize_audit_logs(db: Session, entries: list[Any]) -> list[dict[str, Any
     return items
 
 
+def _serialize_users(entries: list[UserRead]) -> list[dict[str, Any]]:
+    """Serialize users for dashboard and JSON responses."""
+
+    return [
+        {
+            "id": str(entry.id),
+            "email": entry.email,
+            "full_name": entry.full_name,
+            "role": entry.role.value,
+            "is_active": entry.is_active,
+            "created_at": entry.created_at.isoformat(),
+            "updated_at": entry.updated_at.isoformat(),
+            "last_login_at": entry.last_login_at.isoformat() if entry.last_login_at else None,
+        }
+        for entry in entries
+    ]
+
+
+def _get_user_payloads(db: Session, *, include_inactive: bool = True) -> list[dict[str, Any]]:
+    """Load user management data for admin surfaces."""
+
+    repo = UserRepository(db)
+    return _serialize_users(repo.list_all(include_inactive=include_inactive))
+
+
+def _workspace_copy(role: UserRole) -> dict[str, str]:
+    """Return role-specific dashboard copy."""
+
+    if role == UserRole.ADMIN:
+        return {
+            "label": "Admin Control Plane",
+            "summary": "Manage users, review audit history, upload analyses, and clean the archive.",
+        }
+    if role == UserRole.ANALYST:
+        return {
+            "label": "Analyst Workspace",
+            "summary": "Upload new tensile datasets, inspect persisted analyses, and download reports.",
+        }
+    return {
+        "label": "Read-only Workspace",
+        "summary": "Browse persisted analyses and reports without write or management permissions.",
+    }
+
+
 def _get_recent_audit_payloads(
     db: Session,
     *,
     limit: int = 25,
     entity_type: AuditEntityType | None = None,
     entity_id: str | None = None,
+    action: AuditAction | None = None,
+    status: AuditStatus | None = None,
+    actor_user_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Load recent audit trail entries with optional entity filtering."""
 
     bounded_limit = max(1, min(limit, 200))
     repo = AuditLogRepository(db)
-    if entity_type is not None and entity_id:
-        entries = repo.list_for_entity(entity_type.value, entity_id, limit=bounded_limit)
-    else:
-        entries = repo.list_recent(limit=bounded_limit)
+    entries = repo.list_filtered(
+        limit=bounded_limit,
+        entity_type=entity_type.value if entity_type is not None else None,
+        entity_id=entity_id,
+        action=action.value if action is not None else None,
+        status=status.value if status is not None else None,
+        actor_user_id=actor_user_id,
+    )
     return _serialize_audit_logs(db, entries)
 
 
@@ -469,14 +542,44 @@ async def dashboard(
     if current_user is None:
         return RedirectResponse(url="/login", status_code=303)
 
+    selected_result_id = request.query_params.get("id")
     current, recent_results = _get_dashboard_state(
         db,
-        selected_result_id=request.query_params.get("id"),
+        selected_result_id=selected_result_id,
         limit=10,
     )
     can_upload = current_user.role in {UserRole.ADMIN, UserRole.ANALYST}
     can_manage_results = current_user.role == UserRole.ADMIN
-    audit_logs = _get_recent_audit_payloads(db, limit=12) if can_manage_results else []
+    audit_limit_raw = request.query_params.get("audit_limit", "12")
+    try:
+        audit_limit = max(5, min(int(audit_limit_raw), 50))
+    except ValueError:
+        audit_limit = 12
+
+    audit_filters = {
+        "entity_type": _parse_enum_member(
+            AuditEntityType, request.query_params.get("audit_entity_type")
+        ),
+        "entity_id": request.query_params.get("audit_entity_id", "").strip() or None,
+        "action": _parse_enum_member(AuditAction, request.query_params.get("audit_action")),
+        "status": _parse_enum_member(AuditStatus, request.query_params.get("audit_status")),
+        "actor_user_id": _parse_uuid(request.query_params.get("audit_actor_user_id")),
+        "limit": audit_limit,
+    }
+    audit_logs = (
+        _get_recent_audit_payloads(
+            db,
+            limit=audit_limit,
+            entity_type=audit_filters["entity_type"],
+            entity_id=audit_filters["entity_id"],
+            action=audit_filters["action"],
+            status=audit_filters["status"],
+            actor_user_id=audit_filters["actor_user_id"],
+        )
+        if can_manage_results
+        else []
+    )
+    admin_users = _get_user_payloads(db, include_inactive=True) if can_manage_results else []
     return render_template(
         request=request,
         name="dashboard.html",
@@ -490,6 +593,20 @@ async def dashboard(
             "can_manage_results": can_manage_results,
             "selected_result_id": current["id"] if current is not None else None,
             "audit_logs": audit_logs,
+            "admin_users": admin_users,
+            "audit_filters": {
+                "entity_type": audit_filters["entity_type"].value
+                if audit_filters["entity_type"] is not None
+                else "",
+                "entity_id": audit_filters["entity_id"] or "",
+                "action": audit_filters["action"].value if audit_filters["action"] else "",
+                "status": audit_filters["status"].value if audit_filters["status"] else "",
+                "actor_user_id": str(audit_filters["actor_user_id"])
+                if audit_filters["actor_user_id"] is not None
+                else "",
+                "limit": audit_limit,
+            },
+            "workspace_copy": _workspace_copy(current_user.role),
         },
     )
 
@@ -568,11 +685,93 @@ async def get_results(
     return JSONResponse({"results": _get_recent_results_payloads(db, limit=100)})
 
 
+@app.get("/api/users")
+async def get_users(
+    request: Request,
+    include_inactive: bool = True,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
+) -> JSONResponse:
+    """Return users for admin management surfaces."""
+
+    users = _get_user_payloads(db, include_inactive=include_inactive)
+    append_audit_event(
+        db,
+        request,
+        action=AuditAction.READ,
+        entity_type=AuditEntityType.USER,
+        entity_id="list",
+        actor_user_id=current_user.id,
+        event_meta={"include_inactive": include_inactive, "returned_count": len(users)},
+    )
+    return JSONResponse({"users": users, "count": len(users)})
+
+
+@app.patch("/api/users/{user_id}")
+async def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
+) -> JSONResponse:
+    """Update role and activation state for an existing user."""
+
+    parsed_id = _parse_uuid(user_id)
+    if parsed_id is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    repo = UserRepository(db)
+    existing = repo.get_by_id(parsed_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    demotes_last_admin = (
+        existing.role == UserRole.ADMIN
+        and existing.is_active
+        and (
+            payload.is_active is False
+            or (payload.role is not None and payload.role != UserRole.ADMIN)
+        )
+    )
+    if demotes_last_admin and repo.count_active_admins(exclude_user_id=existing.id) == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="At least one active admin must remain in the system.",
+        )
+
+    updated = repo.update_managed_user(parsed_id, payload)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    append_audit_event(
+        db,
+        request,
+        action=AuditAction.UPDATE,
+        entity_type=AuditEntityType.USER,
+        entity_id=user_id,
+        actor_user_id=current_user.id,
+        before_snapshot=existing.model_dump(mode="json"),
+        after_snapshot=updated.model_dump(mode="json"),
+        event_meta={
+            "updated_fields": [
+                field_name
+                for field_name, value in payload.model_dump().items()
+                if value is not None
+            ]
+        },
+    )
+    return JSONResponse({"status": "success", "user": updated.model_dump(mode="json")})
+
+
 @app.get("/api/audit-logs")
 async def get_audit_logs(
     request: Request,
     entity_type: AuditEntityType | None = None,
     entity_id: str | None = None,
+    action: AuditAction | None = None,
+    status: AuditStatus | None = None,
+    actor_user_id: UUID | None = None,
     limit: int = 50,
     db: Session = Depends(get_db_session),
     current_user: UserRead = Depends(require_roles(UserRole.ADMIN)),
@@ -589,6 +788,9 @@ async def get_audit_logs(
         limit=limit,
         entity_type=entity_type,
         entity_id=entity_id,
+        action=action,
+        status=status,
+        actor_user_id=actor_user_id,
     )
     append_audit_event(
         db,
@@ -600,6 +802,9 @@ async def get_audit_logs(
         event_meta={
             "filter_entity_type": entity_type.value if entity_type is not None else None,
             "filter_entity_id": entity_id,
+            "filter_action": action.value if action is not None else None,
+            "filter_status": status.value if status is not None else None,
+            "filter_actor_user_id": str(actor_user_id) if actor_user_id is not None else None,
             "returned_count": len(items),
         },
     )

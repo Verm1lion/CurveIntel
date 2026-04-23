@@ -12,6 +12,7 @@ CurveIntel is a vendor-agnostic tensile test analysis engine for universal testi
 - Roles: `admin`, `analyst`, `viewer`
 - Append-only audit trail for auth, analysis, download, and delete actions
 - Web dashboard backed by persisted results instead of an in-memory result store
+- Admin backoffice panel for user management, audit filtering, and role-aware dashboard states
 - PostgreSQL-ready Docker workflow with automatic `alembic upgrade head` on container startup
 
 ## Supported Vendor Profiles
@@ -112,6 +113,8 @@ Role expectations:
 | `/api/auth/login` | POST | Public | Sign in |
 | `/api/auth/logout` | POST | Authenticated | Clear auth cookie |
 | `/api/auth/me` | GET | Authenticated | Current user |
+| `/api/users` | GET | Admin | List managed users |
+| `/api/users/{id}` | PATCH | Admin | Update role and activation state |
 | `/api/analyze` | POST | Admin, Analyst | Upload CSV and persist analysis |
 | `/api/results` | GET | Authenticated | List persisted results |
 | `/api/results/{id}` | GET | Authenticated | Read one persisted result |
@@ -156,6 +159,7 @@ The current suite covers:
 - SQLite migrations
 - Auth bootstrap and RBAC flows
 - Audit append-only behavior
+- Admin user management and role-aware dashboard rendering
 - API integration for analyze, read, download, delete, and audit access
 
 Optional live PostgreSQL smoke:
@@ -171,6 +175,7 @@ GitHub Actions runs this smoke flow against PostgreSQL in the dedicated `postgre
 
 - Persisted database records are the source of truth for dashboard data.
 - PDF generation rehydrates its report context from the persisted snapshot instead of relying on an in-memory result store.
+- Admin dashboard controls are layered on top of `/api/users` and filtered `/api/audit-logs`.
 - Demo data seeding is opt-in and controlled by `CURVEINTEL_LOAD_DEMO_DATA`.
 
 ## License

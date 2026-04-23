@@ -30,6 +30,7 @@ from src.curveintel.db.schemas import (
     AuditLogRead,
     UserCreate,
     UserRead,
+    UserUpdate,
 )
 
 __all__ = [
@@ -52,6 +53,7 @@ __all__ = [
     "UserRead",
     "UserRepository",
     "UserRole",
+    "UserUpdate",
     "append_audit_event",
     "engine",
     "ensure_database_schema_ready",

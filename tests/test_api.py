@@ -242,3 +242,150 @@ def test_role_boundaries_and_audit_validation(
     viewer_clear = api_client.delete("/api/results/clear")
     assert viewer_clear.status_code == 403
     assert viewer_clear.json()["error"]["code"] == "forbidden"
+
+
+def test_admin_user_management_and_role_aware_dashboard(api_client: TestClient) -> None:
+    """Admins should manage users while dashboards remain role-aware."""
+
+    register_admin = api_client.post(
+        "/api/auth/register",
+        json={
+            "email": "admin@example.com",
+            "full_name": "Bootstrap Admin",
+            "password": "Bootstrap123A",
+        },
+    )
+    assert register_admin.status_code == 201, register_admin.text
+    login(api_client, "admin@example.com", "Bootstrap123A")
+
+    analyst_response = api_client.post(
+        "/api/auth/register",
+        json={
+            "email": "analyst@example.com",
+            "full_name": "Analyst User",
+            "password": "Analyst123Ax",
+            "role": UserRole.ANALYST.value,
+        },
+    )
+    viewer_response = api_client.post(
+        "/api/auth/register",
+        json={
+            "email": "viewer@example.com",
+            "full_name": "Viewer User",
+            "password": "Viewer123Axy",
+            "role": UserRole.VIEWER.value,
+        },
+    )
+    assert analyst_response.status_code == 201, analyst_response.text
+    assert viewer_response.status_code == 201, viewer_response.text
+
+    users_response = api_client.get("/api/users")
+    assert users_response.status_code == 200, users_response.text
+    users_payload = users_response.json()
+    assert users_payload["count"] == 3
+    users_by_email = {item["email"]: item for item in users_payload["users"]}
+    analyst_id = users_by_email["analyst@example.com"]["id"]
+
+    update_response = api_client.patch(
+        f"/api/users/{analyst_id}",
+        json={"role": UserRole.VIEWER.value, "is_active": False},
+    )
+    assert update_response.status_code == 200, update_response.text
+    updated_payload = update_response.json()
+    assert updated_payload["status"] == "success"
+    assert updated_payload["user"]["role"] == UserRole.VIEWER.value
+    assert updated_payload["user"]["is_active"] is False
+
+    filtered_audit = api_client.get(
+        "/api/audit-logs",
+        params={
+            "action": "update",
+            "status": "success",
+            "entity_type": "user",
+            "entity_id": analyst_id,
+        },
+    )
+    assert filtered_audit.status_code == 200, filtered_audit.text
+    filtered_payload = filtered_audit.json()
+    assert filtered_payload["count"] == 1
+    assert filtered_payload["items"][0]["action"] == "update"
+    assert filtered_payload["items"][0]["entity_type"] == "user"
+    assert filtered_payload["items"][0]["entity_id"] == analyst_id
+
+    admin_dashboard = api_client.get("/")
+    assert admin_dashboard.status_code == 200
+    assert "Admin Control Plane" in admin_dashboard.text
+    assert "User Access Control" in admin_dashboard.text
+    assert "Audit Trail" in admin_dashboard.text
+
+    api_client.post("/api/auth/logout")
+    login(api_client, "viewer@example.com", "Viewer123Axy")
+    viewer_dashboard = api_client.get("/")
+    assert viewer_dashboard.status_code == 200
+    assert "Read-only Workspace" in viewer_dashboard.text
+    assert "User Access Control" not in viewer_dashboard.text
+
+
+def test_last_admin_guard_and_filtered_audit_queries(api_client: TestClient) -> None:
+    """The last active admin should be protected and audit filters should remain composable."""
+
+    register_admin = api_client.post(
+        "/api/auth/register",
+        json={
+            "email": "admin@example.com",
+            "full_name": "Bootstrap Admin",
+            "password": "Bootstrap123A",
+        },
+    )
+    assert register_admin.status_code == 201, register_admin.text
+    login(api_client, "admin@example.com", "Bootstrap123A")
+
+    analyst_response = api_client.post(
+        "/api/auth/register",
+        json={
+            "email": "analyst@example.com",
+            "full_name": "Analyst User",
+            "password": "Analyst123Ax",
+            "role": UserRole.ANALYST.value,
+        },
+    )
+    assert analyst_response.status_code == 201, analyst_response.text
+
+    users_response = api_client.get("/api/users")
+    users_payload = users_response.json()
+    users_by_email = {item["email"]: item for item in users_payload["users"]}
+    admin_id = users_by_email["admin@example.com"]["id"]
+    analyst_id = users_by_email["analyst@example.com"]["id"]
+
+    demote_admin = api_client.patch(
+        f"/api/users/{admin_id}",
+        json={"role": UserRole.VIEWER.value},
+    )
+    assert demote_admin.status_code == 409
+    demote_payload = demote_admin.json()
+    assert demote_payload["status"] == "error"
+    assert demote_payload["error"]["code"] == "conflict"
+    assert (
+        demote_payload["error"]["message"] == "At least one active admin must remain in the system."
+    )
+
+    update_analyst = api_client.patch(
+        f"/api/users/{analyst_id}",
+        json={"role": UserRole.VIEWER.value},
+    )
+    assert update_analyst.status_code == 200, update_analyst.text
+
+    filtered_audit = api_client.get(
+        "/api/audit-logs",
+        params={
+            "action": "update",
+            "entity_type": "user",
+            "entity_id": analyst_id,
+            "actor_user_id": admin_id,
+        },
+    )
+    assert filtered_audit.status_code == 200, filtered_audit.text
+    filtered_payload = filtered_audit.json()
+    assert filtered_payload["count"] == 1
+    assert filtered_payload["items"][0]["actor_user_id"] == admin_id
+    assert filtered_payload["items"][0]["entity_id"] == analyst_id

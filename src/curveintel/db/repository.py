@@ -18,6 +18,7 @@ from src.curveintel.db.schemas import (
     AuditLogRead,
     UserCreate,
     UserRead,
+    UserUpdate,
 )
 
 
@@ -77,6 +78,14 @@ class UserRepository:
         stmt = select(User).where(User.is_active.is_(True)).order_by(User.created_at.desc())
         return [UserRead.model_validate(user) for user in self.session.scalars(stmt)]
 
+    def list_all(self, include_inactive: bool = True) -> list[UserRead]:
+        """List users ordered by most recently created first."""
+
+        stmt = select(User).order_by(User.created_at.desc())
+        if not include_inactive:
+            stmt = stmt.where(User.is_active.is_(True))
+        return [UserRead.model_validate(user) for user in self.session.scalars(stmt)]
+
     def count_users(self) -> int:
         """Return the total number of users."""
 
@@ -89,6 +98,17 @@ class UserRepository:
         stmt = select(User.id).where(User.is_active.is_(True), User.role == UserRole.ADMIN).limit(1)
         return self.session.execute(stmt).scalar_one_or_none() is not None
 
+    def count_active_admins(self, exclude_user_id: UUID | None = None) -> int:
+        """Return the number of active admin users."""
+
+        stmt = select(func.count(User.id)).where(
+            User.is_active.is_(True),
+            User.role == UserRole.ADMIN,
+        )
+        if exclude_user_id is not None:
+            stmt = stmt.where(User.id != exclude_user_id)
+        return int(self.session.execute(stmt).scalar_one())
+
     def update_last_login(
         self, user_id: UUID, last_login_at: datetime | None = None
     ) -> UserRead | None:
@@ -99,6 +119,23 @@ class UserRepository:
             return None
 
         user.last_login_at = last_login_at or utcnow()
+        user.updated_at = utcnow()
+        self._commit_refresh(user)
+        return UserRead.model_validate(user)
+
+    def update_managed_user(self, user_id: UUID, payload: UserUpdate) -> UserRead | None:
+        """Apply admin-managed updates to an existing user."""
+
+        user = self.session.get(User, user_id)
+        if user is None:
+            return None
+
+        if payload.full_name is not None:
+            user.full_name = payload.full_name
+        if payload.role is not None:
+            user.role = payload.role
+        if payload.is_active is not None:
+            user.is_active = payload.is_active
         user.updated_at = utcnow()
         self._commit_refresh(user)
         return UserRead.model_validate(user)
@@ -270,6 +307,33 @@ class AuditLogRepository:
         """List recent audit events."""
 
         stmt = select(AuditLog).order_by(AuditLog.occurred_at.desc()).limit(limit)
+        return [AuditLogRead.model_validate(item) for item in self.session.scalars(stmt)]
+
+    def list_filtered(
+        self,
+        *,
+        limit: int = 100,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+        action: str | None = None,
+        status: str | None = None,
+        actor_user_id: UUID | None = None,
+    ) -> list[AuditLogRead]:
+        """List recent audit events with optional filters."""
+
+        stmt = select(AuditLog)
+        if entity_type is not None:
+            stmt = stmt.where(AuditLog.entity_type == entity_type)
+        if entity_id is not None:
+            stmt = stmt.where(AuditLog.entity_id == entity_id)
+        if action is not None:
+            stmt = stmt.where(AuditLog.action == action)
+        if status is not None:
+            stmt = stmt.where(AuditLog.status == status)
+        if actor_user_id is not None:
+            stmt = stmt.where(AuditLog.actor_user_id == actor_user_id)
+
+        stmt = stmt.order_by(AuditLog.occurred_at.desc()).limit(limit)
         return [AuditLogRead.model_validate(item) for item in self.session.scalars(stmt)]
 
     def _commit_refresh(self, instance: AuditLog) -> None:
