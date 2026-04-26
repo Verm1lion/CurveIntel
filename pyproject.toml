@@ -44,6 +44,7 @@ dependencies = [
     "alembic>=1.13",
     "python-jose[cryptography]>=3.3",
     "passlib[bcrypt]>=1.7",
+    "bcrypt<5",
     "pydantic-settings>=2.0",
     "psycopg2-binary>=2.9",
 ]
