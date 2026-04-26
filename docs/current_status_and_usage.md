@@ -23,11 +23,9 @@ What is not a product blocker anymore:
 
 What still remains outside product development:
 
-- GitHub/release operations
-- Demo deployment
-- `v2.0.0` tag and GitHub release publication
+- Optional demo deployment beyond local Docker
 
-In short: the coding phase for the baseline is complete, and the remaining work is release/ops-oriented.
+In short: the coding phase for the baseline is complete, `v2.0.0` has been published, and the remaining work is optional demo/ops polish.
 
 ## 2. Supported Runtime Modes
 
@@ -418,9 +416,9 @@ The baseline has already been verified through:
 
 - `ruff check .`
 - `ruff format --check .`
-- `pytest -q`
-- `pytest --cov=src --cov-report=term-missing -q`
-- Docker + PostgreSQL smoke validation
+- `pytest -q` (`33 passed, 2 skipped`)
+- `pytest --cov=src --cov-report=term-missing -q` (`33 passed, 2 skipped`, 75% coverage)
+- Docker + PostgreSQL smoke validation using `examples/sample_nist.csv`
 
 This means the current baseline is not just documented; it has already been exercised in both SQLite-oriented tests and PostgreSQL deployment-style flow.
 
@@ -430,9 +428,7 @@ No critical product development blockers are left in the baseline phase.
 
 What remains:
 
-- `v2.0.0` tag and GitHub release publication
-- repo settings and branch protection
 - issue/release hygiene
-- demo deployment
+- optional demo deployment beyond local Docker
 
-So the project is now in a public-shareable and release-prep state rather than an unfinished core-development state.
+So the project is now in a public-shareable baseline state rather than an unfinished core-development state.

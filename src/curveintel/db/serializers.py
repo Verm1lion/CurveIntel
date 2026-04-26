@@ -474,7 +474,7 @@ def build_analysis_payload(
     strain_rate_value = ctx.extra.get("strain_rate_median")
     strain_rate_compliant = ctx.extra.get("strain_rate_compliant")
 
-    return {
+    payload = {
         "id": result_id or str(uuid4()),
         "filename": filename,
         "timestamp": timestamp or utcnow_display(),
@@ -551,6 +551,7 @@ def build_analysis_payload(
             "critical": crit_count,
         },
     }
+    return make_json_ready(payload)
 
 
 def build_context_snapshot(ctx: AnalysisContext) -> dict[str, Any]:
