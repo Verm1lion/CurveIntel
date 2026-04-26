@@ -184,3 +184,10 @@ GitHub Actions runs this smoke flow against PostgreSQL in the dedicated `postgre
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+---
+
+## Auto-generated contribution
+
+Added by bounty bot.
