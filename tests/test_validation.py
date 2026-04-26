@@ -1,23 +1,6 @@
-"""
-CurveIntel — FAZ 11: Validasyon Test Suite.
+"""CurveIntel validation suite against NIST Numisheet reference data."""
 
-NIST Numisheet 2020 referans verileri ile pipeline dogrulugunun
-otomatik dogrulanmasi. Her release'de calistirilmalidir.
-
-Referans malzeme degerleri:
-  - Al6xxx-T4: Otomotiv aluminyum alasimi (AA6xxx serisi, T4 temper)
-  - Al6xxx-T81: Otomotiv aluminyum (T81 temper — yaslandirilmis)
-  - FeDP980: Dual phase celik (980 MPa sinifi)
-  - FeDP1180: Dual phase celik (1180 MPa sinifi)
-
-Toleranslar:
-  - Rm: +/- %5 (ISO 6892-1 tipik lab-arasi fark: %1-3)
-  - Rp0.2: +/- %10 (offset yontemi hassasiyetine bagli)
-  - At: +/- %20 (kopma noktasi tespiti hassas degil)
-  - E: +/- %15 (yuksek — bilinen zorluk, Annex G, NPL GPG 98)
-
-Kaynak: NIST Numisheet 2020, ASTM datasheets, MatWeb
-"""
+# ruff: noqa: E402
 
 from __future__ import annotations
 
@@ -26,16 +9,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.curveintel.manual_data import get_nist_directory, manual_dataset_help
 from src.pipeline.base import AnalysisContext, Pipeline
-from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
-from src.pipeline.preprocessing import (
-    Resampler,
-    SavitzkyGolayFilter,
-    SpikeFilter,
-    ToeCompensation,
-)
 from src.pipeline.extraction import (
     ElasticModulusDetector,
     ElongationDetector,
@@ -45,54 +23,57 @@ from src.pipeline.extraction import (
     UTSDetector,
     YieldDetector,
 )
+from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
+from src.pipeline.preprocessing import (
+    Resampler,
+    SavitzkyGolayFilter,
+    SpikeFilter,
+    ToeCompensation,
+)
 
 
-# ══════════════════════════════════════════════
-# Referans Degerler (Golden Values)
-# ══════════════════════════════════════════════
 @dataclass
 class MaterialReference:
-    """Bilinen malzeme referans degerleri."""
+    """Reference ranges for a known material family."""
 
     name: str
-    rm_mpa: tuple[float, float]  # (min, max) UTS araligi
-    rp02_mpa: tuple[float, float]  # (min, max) Yield araligi
-    at_pct: tuple[float, float]  # (min, max) Elongation araligi
-    e_gpa: tuple[float, float]  # (min, max) Elastik modul araligi
-    n_hollomon: tuple[float, float]  # (min, max) Strain hardening
+    rm_mpa: tuple[float, float]
+    rp02_mpa: tuple[float, float]
+    at_pct: tuple[float, float]
+    e_gpa: tuple[float, float]
+    n_hollomon: tuple[float, float]
 
 
-# Referans degerleri — kaynak: NIST metadata + ASTM datasheets + MatWeb
 REFERENCES = {
     "Al6xxx-T4": MaterialReference(
-        name="Al6xxx-T4 (Otomotiv AA6xxx, T4 temper)",
-        rm_mpa=(200, 350),  # Tipik: 240-280 MPa
-        rp02_mpa=(100, 320),  # NIST: offset yontemi ile 250-310 gozlemlendi
-        at_pct=(15, 40),  # Tipik: 20-28%
-        e_gpa=(40, 170),  # Genis: raw CSV'de toe etkisi, NPL: %4-14 belirsizlik
-        n_hollomon=(0.10, 10.0),  # Hollomon fit hassasiyetine cok bagimli
+        name="Al6xxx-T4 (Automotive AA6xxx, T4 temper)",
+        rm_mpa=(200, 350),
+        rp02_mpa=(100, 320),
+        at_pct=(15, 40),
+        e_gpa=(40, 170),
+        n_hollomon=(0.10, 10.0),
     ),
     "Al6xxx-T81": MaterialReference(
-        name="Al6xxx-T81 (Otomotiv AA6xxx, T81 temper)",
-        rm_mpa=(250, 420),  # T81 daha sert
-        rp02_mpa=(180, 380),  # NIST: 350-360 gozlemlendi
-        at_pct=(5, 30),  # NIST: ~24% gozlemlendi
-        e_gpa=(40, 170),  # Genis
+        name="Al6xxx-T81 (Automotive AA6xxx, T81 temper)",
+        rm_mpa=(250, 420),
+        rp02_mpa=(180, 380),
+        at_pct=(5, 30),
+        e_gpa=(40, 170),
         n_hollomon=(0.05, 10.0),
     ),
     "FeDP980": MaterialReference(
-        name="FeDP980 (Dual Phase Celik, 980 MPa sinifi)",
-        rm_mpa=(900, 1150),  # Tipik: 980-1050 MPa
-        rp02_mpa=(500, 1050),  # DP980: C00 verilerinde yuksek yield
-        at_pct=(5, 25),  # Tipik: 8-12%
-        e_gpa=(150, 230),  # NIST: 175 gozlemlendi, genis tut
+        name="FeDP980 (Dual-phase steel, 980 MPa class)",
+        rm_mpa=(900, 1150),
+        rp02_mpa=(500, 1050),
+        at_pct=(5, 25),
+        e_gpa=(150, 230),
         n_hollomon=(0.03, 10.0),
     ),
     "FeDP1180": MaterialReference(
-        name="FeDP1180 (Dual Phase Celik, 1180 MPa sinifi)",
-        rm_mpa=(1100, 1400),  # Tipik: 1180-1250 MPa
-        rp02_mpa=(700, 1200),  # NIST: 1180 gozlemlendi
-        at_pct=(3, 20),  # NIST: 15-16 gozlemlendi
+        name="FeDP1180 (Dual-phase steel, 1180 MPa class)",
+        rm_mpa=(1100, 1400),
+        rp02_mpa=(700, 1200),
+        at_pct=(3, 20),
         e_gpa=(150, 230),
         n_hollomon=(0.03, 10.0),
     ),
@@ -100,21 +81,23 @@ REFERENCES = {
 
 
 def _detect_material(filename: str) -> str | None:
-    """Dosya adindan malzeme turunu tespit et."""
-    fn = filename.upper()
-    if "AL6XXX" in fn and "T81" in fn:
+    """Infer the material family from the filename."""
+
+    upper_name = filename.upper()
+    if "AL6XXX" in upper_name and "T81" in upper_name:
         return "Al6xxx-T81"
-    if "AL6XXX" in fn and "T4" in fn:
+    if "AL6XXX" in upper_name and "T4" in upper_name:
         return "Al6xxx-T4"
-    if "DP1180" in fn or "FEDP1180" in fn:
+    if "DP1180" in upper_name or "FEDP1180" in upper_name:
         return "FeDP1180"
-    if "DP980" in fn or "FEDP980" in fn:
+    if "DP980" in upper_name or "FEDP980" in upper_name:
         return "FeDP980"
     return None
 
 
 def build_validation_pipeline(csv_path: Path) -> Pipeline:
-    """Validasyon pipeline — anomaly steps olmadan."""
+    """Build the validation pipeline without anomaly-only steps."""
+
     return Pipeline(
         [
             DataLoader(csv_path),
@@ -137,7 +120,7 @@ def build_validation_pipeline(csv_path: Path) -> Pipeline:
 
 @dataclass
 class ValidationResult:
-    """Tek bir validasyon sonucu."""
+    """One property-level validation result."""
 
     filename: str
     material: str
@@ -151,7 +134,7 @@ class ValidationResult:
 
 @dataclass
 class ValidationReport:
-    """Tam validasyon raporu."""
+    """Aggregate validation report."""
 
     total_files: int = 0
     successful_files: int = 0
@@ -162,31 +145,20 @@ class ValidationReport:
     skip_count: int = 0
 
 
-def run_validation(
-    data_dir: Path,
-    max_files: int | None = None,
-) -> ValidationReport:
-    """
-    NIST veri seti ile tam validasyon calistir.
+def run_validation(data_dir: Path, max_files: int | None = None) -> ValidationReport:
+    """Run the validation suite against a NIST dataset directory."""
 
-    Args:
-        data_dir: NIST CSV dosyalarinin dizini
-        max_files: En fazla islenecek dosya (None = hepsi)
-
-    Returns:
-        ValidationReport
-    """
     report = ValidationReport()
 
     csv_files = sorted(data_dir.rglob("*.csv"))
     csv_files = [
-        f
-        for f in csv_files
-        if "map" not in f.name.lower()
-        and "summary" not in f.name.lower()
-        and "report" not in f.name.lower()
-        and "attributes" not in f.name.lower()
-        and "rawdata.csv" not in f.name.lower()
+        file_path
+        for file_path in csv_files
+        if "map" not in file_path.name.lower()
+        and "summary" not in file_path.name.lower()
+        and "report" not in file_path.name.lower()
+        and "attributes" not in file_path.name.lower()
+        and "rawdata.csv" not in file_path.name.lower()
     ]
 
     if max_files:
@@ -195,19 +167,19 @@ def run_validation(
     report.total_files = len(csv_files)
 
     print("=" * 70)
-    print("  CurveIntel Validasyon Test Suite")
-    print(f"  Dizin: {data_dir}")
-    print(f"  Dosya sayisi: {len(csv_files)}")
+    print("  CurveIntel Validation Test Suite")
+    print(f"  Directory: {data_dir}")
+    print(f"  Files: {len(csv_files)}")
     print("=" * 70)
 
-    for i, csv_path in enumerate(csv_files, 1):
+    for index, csv_path in enumerate(csv_files, 1):
         material = _detect_material(csv_path.name)
         if material is None:
             continue
 
         ref = REFERENCES[material]
         rel = csv_path.name[:40]
-        print(f"\n  [{i}/{len(csv_files)}] {rel} [{material}]")
+        print(f"\n  [{index}/{len(csv_files)}] {rel} [{material}]")
 
         try:
             pipeline = build_validation_pipeline(csv_path)
@@ -219,15 +191,14 @@ def run_validation(
                 continue
 
             report.successful_files += 1
-            p = ctx.properties
+            properties = ctx.properties
 
-            # Her ozellik icin dogrulama
             checks = [
-                ("Rm", p.ultimate_tensile_mpa, ref.rm_mpa),
-                ("Rp0.2", p.yield_strength_mpa, ref.rp02_mpa),
-                ("At", p.elongation_at_break_pct, ref.at_pct),
-                ("E", p.elastic_modulus_gpa, ref.e_gpa),
-                ("n", p.strain_hardening_n, ref.n_hollomon),
+                ("Rm", properties.ultimate_tensile_mpa, ref.rm_mpa),
+                ("Rp0.2", properties.yield_strength_mpa, ref.rp02_mpa),
+                ("At", properties.elongation_at_break_pct, ref.at_pct),
+                ("E", properties.elastic_modulus_gpa, ref.e_gpa),
+                ("n", properties.strain_hardening_n, ref.n_hollomon),
             ]
 
             for prop_name, measured, (ref_min, ref_max) in checks:
@@ -236,7 +207,7 @@ def run_validation(
                     continue
 
                 passed = ref_min <= measured <= ref_max
-                vr = ValidationResult(
+                validation_result = ValidationResult(
                     filename=csv_path.name,
                     material=material,
                     property_name=prop_name,
@@ -252,37 +223,38 @@ def run_validation(
                 else:
                     report.fail_count += 1
                     icon = "XX"
-                    vr.note = f"DISI: {measured:.2f} not in [{ref_min}, {ref_max}]"
+                    validation_result.note = (
+                        f"OUTSIDE_RANGE: {measured:.2f} not in [{ref_min}, {ref_max}]"
+                    )
 
-                report.results.append(vr)
+                report.results.append(validation_result)
                 print(
                     f"    [{icon}] {prop_name:>6} = {measured:>10.2f}  "
                     f"ref:[{ref_min:.0f}-{ref_max:.0f}]"
                 )
 
-        except Exception as e:
+        except Exception as exc:
             report.failed_files += 1
-            print(f"    [XX] Hata: {e}")
+            print(f"    [XX] Error: {exc}")
 
-    # Ozet
     total_checks = report.pass_count + report.fail_count
     pass_rate = (report.pass_count / total_checks * 100) if total_checks else 0
 
     print("\n" + "=" * 70)
-    print("  VALIDASYON SONUCU")
-    print(f"  Dosya: {report.successful_files}/{report.total_files} basarili")
+    print("  VALIDATION RESULT")
+    print(f"  Files: {report.successful_files}/{report.total_files} successful")
     print(
-        f"  Kontrol: {report.pass_count} PASS / {report.fail_count} FAIL / {report.skip_count} SKIP"
+        f"  Checks: {report.pass_count} PASS / {report.fail_count} FAIL / {report.skip_count} SKIP"
     )
-    print(f"  Basari orani: {pass_rate:.1f}%")
+    print(f"  Pass rate: {pass_rate:.1f}%")
 
     if report.fail_count > 0:
-        print("\n  [BASARISIZ KONTROLLER]")
-        for r in report.results:
-            if not r.passed:
+        print("\n  [FAILED CHECKS]")
+        for result in report.results:
+            if not result.passed:
                 print(
-                    f"    {r.filename[:35]:35} {r.property_name:>6} = "
-                    f"{r.measured:>10.2f}  ref:[{r.ref_min:.0f}-{r.ref_max:.0f}]"
+                    f"    {result.filename[:35]:35} {result.property_name:>6} = "
+                    f"{result.measured:>10.2f}  ref:[{result.ref_min:.0f}-{result.ref_max:.0f}]"
                 )
 
     print("=" * 70)
@@ -290,29 +262,30 @@ def run_validation(
 
 
 if __name__ == "__main__":
-    nist_dir = Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri\nist_numisheet")
+    nist_dir = (
+        Path(sys.argv[1])
+        if len(sys.argv) > 1 and not sys.argv[1].startswith("--")
+        else get_nist_directory()
+    )
+    if nist_dir is None:
+        print("[SKIP] No NIST dataset directory is configured for the validation suite.")
+        print(f"[HINT] {manual_dataset_help()}")
+        raise SystemExit(0)
 
-    if len(sys.argv) > 1:
-        nist_dir = Path(sys.argv[1])
-
-    # Hizli test (malzeme basi 3 dosya) veya tam test
-    max_f = None
-    if "--quick" in sys.argv:
-        max_f = 12  # 4 malzeme x 3 dosya
+    max_files = 12 if "--quick" in sys.argv else None
 
     t0 = time.perf_counter()
-    report = run_validation(nist_dir, max_files=max_f)
+    report = run_validation(nist_dir, max_files=max_files)
     elapsed = time.perf_counter() - t0
 
     total_checks = report.pass_count + report.fail_count
     pass_rate = (report.pass_count / total_checks * 100) if total_checks else 0
 
-    print(f"\n  Toplam sure: {elapsed:.1f} s")
+    print(f"\n  Total time: {elapsed:.1f} s")
 
-    # Cikis kodu: >%90 basari gerekli
     if pass_rate >= 90.0:
-        print(f"  [BASARILI] Validasyon gecti ({pass_rate:.1f}% >= 90%)")
+        print(f"  [SUCCESS] Validation passed ({pass_rate:.1f}% >= 90%)")
         sys.exit(0)
-    else:
-        print(f"  [BASARISIZ] Validasyon gecemedi ({pass_rate:.1f}% < 90%)")
-        sys.exit(1)
+
+    print(f"  [FAIL] Validation did not pass ({pass_rate:.1f}% < 90%)")
+    sys.exit(1)

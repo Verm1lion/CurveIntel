@@ -1,9 +1,16 @@
 """Manual NIST pipeline smoke script kept import-safe for pytest."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.curveintel.manual_data import get_nist_reference_csv, manual_dataset_help
 from src.pipeline.base import AnalysisContext, Pipeline
 from src.pipeline.extraction import (
     ElasticModulusDetector,
@@ -21,10 +28,10 @@ from src.pipeline.preprocessing import Resampler, SavitzkyGolayFilter, SpikeFilt
 def main() -> None:
     """Run the manual NIST smoke flow."""
 
-    csv_path = Path(
-        r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri"
-        r"\nist_numisheet\C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv"
-    )
+    csv_path = get_nist_reference_csv()
+    if csv_path is None:
+        print(f"[SKIP] NIST sample could not be resolved. {manual_dataset_help()}")
+        return
 
     print("=" * 65)
     print(f"  NIST Numisheet Test: {csv_path.name}")
@@ -79,7 +86,9 @@ def main() -> None:
     )
     print(f"  n = {properties.strain_hardening_n:.3f}" if properties.strain_hardening_n else "")
     print(
-        f"  Tokluk = {properties.toughness_mj_m3:.2f} MJ/m3" if properties.toughness_mj_m3 else ""
+        f"  Toughness = {properties.toughness_mj_m3:.2f} MJ/m3"
+        if properties.toughness_mj_m3
+        else ""
     )
 
     try:
@@ -115,7 +124,7 @@ def main() -> None:
         ax.grid(True, alpha=0.3)
         fig.savefig(Path(__file__).parent / "test_nist.png", dpi=150, bbox_inches="tight")
         plt.close()
-        print("\n  [GRAFIK] test_nist.png")
+        print("\n  [PLOT] test_nist.png")
     except Exception:
         pass
 

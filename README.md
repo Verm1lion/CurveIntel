@@ -4,6 +4,8 @@
 
 CurveIntel is a vendor-agnostic tensile test analysis engine for universal testing machines. It reads raw stress-strain CSV exports, computes ISO 6892-1:2019 properties, persists analysis records in a database, and exposes a FastAPI web application with authentication, RBAC, and audit logging.
 
+See [docs/current_status_and_usage.md](docs/current_status_and_usage.md) for the current baseline status, startup options, and the real operator workflow. Release notes for this baseline are in [docs/release_notes_v2.0.0.md](docs/release_notes_v2.0.0.md).
+
 ## Current Baseline
 
 - Deterministic tensile analysis pipeline with PDF reporting
@@ -145,6 +147,7 @@ Notes:
 - The application expects the database schema to be ready before serving traffic.
 - For local `uvicorn` runs, execute `alembic upgrade head` yourself.
 - For the Docker app container, the bundled entrypoint runs migrations automatically.
+- Developer-only manual smoke scripts may also use `CURVEINTEL_DATASET_ROOT` to locate optional external datasets.
 
 ## Testing
 

@@ -1,46 +1,53 @@
-"""
-CurveIntel full-dataset diagnostic script.
+"""CurveIntel full-dataset diagnostic script.
 
-Runs every CSV file through the pipeline and reports the resulting status.
+Run every CSV file in an external dataset folder through the pipeline and
+persist a summary CSV with coarse status buckets.
 """
 
+# ruff: noqa: E402
+
+from __future__ import annotations
+
+import csv
 import sys
 import time
-import csv
 from pathlib import Path
 
-# Project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.pipeline.base import Pipeline, AnalysisContext
-from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
-from src.pipeline.preprocessing import (
-    SpikeFilter,
-    ToeCompensation,
-    Resampler,
-    SavitzkyGolayFilter,
-    MonotonicityChecker,
+from src.curveintel.manual_data import get_dataset_root, manual_dataset_help
+from src.pipeline.anomaly import (
+    CurveIntegrityChecker,
+    GripSlippageDetector,
+    NoiseAnalyzer,
+    PropertyValidator,
+    SensorSaturationDetector,
 )
+from src.pipeline.base import AnalysisContext, Pipeline
 from src.pipeline.extraction import (
     ElasticModulusDetector,
-    YieldDetector,
-    UTSDetector,
     ElongationDetector,
     NeckingDetector,
     StrainHardeningFitter,
-    ToughnessCalculator,
     StrainRateValidator,
+    ToughnessCalculator,
+    UTSDetector,
+    YieldDetector,
 )
-from src.pipeline.anomaly import (
-    GripSlippageDetector,
-    SensorSaturationDetector,
-    NoiseAnalyzer,
-    CurveIntegrityChecker,
-    PropertyValidator,
+from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
+from src.pipeline.preprocessing import (
+    MonotonicityChecker,
+    Resampler,
+    SavitzkyGolayFilter,
+    SpikeFilter,
+    ToeCompensation,
 )
+from src.pipeline.reporting import _quality_score
 
 
 def build_pipeline(csv_path: Path) -> Pipeline:
+    """Build the full diagnostic pipeline."""
+
     return Pipeline(
         [
             DataLoader(csv_path),
@@ -68,12 +75,28 @@ def build_pipeline(csv_path: Path) -> Pipeline:
     )
 
 
+DATASET_ROOT = get_dataset_root()
+OUTPUT_CSV = Path(__file__).parent / "diagnostic_results.csv"
+
+
+def _relative_path(csv_path: Path) -> str:
+    """Return a stable relative path for reporting."""
+
+    if DATASET_ROOT is None:
+        return csv_path.name
+    try:
+        return str(csv_path.relative_to(DATASET_ROOT))
+    except ValueError:
+        return csv_path.name
+
+
 def analyze_file(csv_path: Path) -> dict:
     """Analyze one file and return a summary dictionary."""
+
     result = {
         "file": csv_path.name,
         "dir": csv_path.parent.name,
-        "rel_path": str(csv_path.relative_to(DATASET_ROOT)),
+        "rel_path": _relative_path(csv_path),
         "size_kb": round(csv_path.stat().st_size / 1024, 1),
         "status": "UNKNOWN",
         "n_points": 0,
@@ -91,64 +114,65 @@ def analyze_file(csv_path: Path) -> dict:
     }
 
     try:
-        # İlk 3 satırı oku - dosya formatını anla
-        with open(csv_path, "r", errors="replace") as f:
-            head = [f.readline().strip() for _ in range(3)]
+        with csv_path.open("r", errors="replace") as handle:
+            head = [handle.readline().strip() for _ in range(3)]
         result["head_preview"] = " | ".join(head[:2])[:100]
 
         t0 = time.perf_counter()
         pipeline = build_pipeline(csv_path)
         ctx = AnalysisContext()
         ctx = pipeline.run(ctx)
-        dt = (time.perf_counter() - t0) * 1000
-        result["duration_ms"] = round(dt, 1)
+        result["duration_ms"] = round((time.perf_counter() - t0) * 1000, 1)
 
         result["has_data"] = ctx.has_data
         result["n_points"] = ctx.n_points
 
         if not ctx.has_data or ctx.n_points == 0:
             result["status"] = "NO_DATA"
-            result["fail_reason"] = "Pipeline ran but no stress-strain data extracted"
+            result["fail_reason"] = "Pipeline ran but no stress-strain data was extracted."
             return result
 
-        p = ctx.properties
-        result["E_gpa"] = round(p.elastic_modulus_gpa, 1) if p.elastic_modulus_gpa else None
-        result["yield_mpa"] = round(p.yield_strength_mpa, 1) if p.yield_strength_mpa else None
-        result["uts_mpa"] = round(p.ultimate_tensile_mpa, 1) if p.ultimate_tensile_mpa else None
-        result["elongation_pct"] = (
-            round(p.elongation_at_break_pct, 1) if p.elongation_at_break_pct else None
+        properties = ctx.properties
+        result["E_gpa"] = (
+            round(properties.elastic_modulus_gpa, 1) if properties.elastic_modulus_gpa else None
         )
-
-        # Quality score
-        from src.pipeline.reporting import _quality_score
+        result["yield_mpa"] = (
+            round(properties.yield_strength_mpa, 1) if properties.yield_strength_mpa else None
+        )
+        result["uts_mpa"] = (
+            round(properties.ultimate_tensile_mpa, 1) if properties.ultimate_tensile_mpa else None
+        )
+        result["elongation_pct"] = (
+            round(properties.elongation_at_break_pct, 1)
+            if properties.elongation_at_break_pct
+            else None
+        )
 
         score, grade = _quality_score(ctx)
         result["score"] = round(score, 0)
         result["grade"] = grade
 
-        # Hangi property'ler eksik?
         missing = []
-        if not p.elastic_modulus_gpa:
+        if not properties.elastic_modulus_gpa:
             missing.append("E")
-        if not p.yield_strength_mpa:
+        if not properties.yield_strength_mpa:
             missing.append("Yield")
-        if not p.ultimate_tensile_mpa:
+        if not properties.ultimate_tensile_mpa:
             missing.append("UTS")
-        if not p.elongation_at_break_pct:
-            missing.append("Elong")
+        if not properties.elongation_at_break_pct:
+            missing.append("Elongation")
         result["missing_props"] = missing
 
-        # Anomaliler
-        for a in ctx.anomalies:
-            if a.severity in ("warning", "critical"):
-                result["warnings"].append(f"{a.anomaly_type.value}: {a.description[:60]}")
+        for anomaly in ctx.anomalies:
+            if anomaly.severity in ("warning", "critical"):
+                result["warnings"].append(
+                    f"{anomaly.anomaly_type.value}: {anomaly.description[:60]}"
+                )
 
-        # Step hataları
-        for r in ctx.step_results:
-            if r.status.value == "failure":
-                result["errors"].append(f"{r.step_name}: {r.message[:60]}")
+        for step in ctx.step_results:
+            if step.status.value == "failure":
+                result["errors"].append(f"{step.step_name}: {step.message[:60]}")
 
-        # Durumu belirle
         is_cyclic = ctx.extra.get("is_cyclic", False)
         result["is_cyclic"] = is_cyclic
 
@@ -158,29 +182,30 @@ def analyze_file(csv_path: Path) -> dict:
                 f"Cyclic data ({ctx.extra.get('strain_reversals', 0)} reversals)"
             )
         elif result["uts_mpa"] and result["uts_mpa"] > 0:
-            if len(missing) <= 1:
-                result["status"] = "FULL_RESULT"
-            else:
-                result["status"] = "PARTIAL_RESULT"
+            result["status"] = "FULL_RESULT" if len(missing) <= 1 else "PARTIAL_RESULT"
         elif result["n_points"] > 0:
-            result["status"] = "DATA_ONLY"  # Veri var ama property yok
+            result["status"] = "DATA_ONLY"
         else:
             result["status"] = "NO_DATA"
 
-    except Exception as e:
+    except Exception as exc:
         result["status"] = "ERROR"
-        result["fail_reason"] = f"{type(e).__name__}: {str(e)[:100]}"
+        result["fail_reason"] = f"{type(exc).__name__}: {str(exc)[:100]}"
 
     return result
 
 
-# ── Main ──
-DATASET_ROOT = Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri")
-OUTPUT_CSV = Path(__file__).parent / "diagnostic_results.csv"
-
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        DATASET_ROOT = get_dataset_root(sys.argv[1])
+
+    if DATASET_ROOT is None:
+        print("[SKIP] No external dataset root is configured for the diagnostic run.")
+        print(f"[HINT] {manual_dataset_help()}")
+        raise SystemExit(0)
+
     csv_files = sorted(DATASET_ROOT.rglob("*.csv"))
-    print(f"[DIAGNOSTIC] {len(csv_files)} CSV dosyasi bulundu\n")
+    print(f"[DIAGNOSTIC] Found {len(csv_files)} CSV files under {DATASET_ROOT}\n")
 
     results = []
     status_counts = {
@@ -192,12 +217,11 @@ if __name__ == "__main__":
         "ERROR": 0,
     }
 
-    for i, f in enumerate(csv_files, 1):
-        r = analyze_file(f)
-        results.append(r)
-        status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
+    for index, csv_file in enumerate(csv_files, 1):
+        result = analyze_file(csv_file)
+        results.append(result)
+        status_counts[result["status"]] = status_counts.get(result["status"], 0) + 1
 
-        # Progress
         icon = {
             "FULL_RESULT": "[OK]",
             "PARTIAL_RESULT": "[PT]",
@@ -205,47 +229,45 @@ if __name__ == "__main__":
             "CYCLIC": "[CY]",
             "NO_DATA": "[ND]",
             "ERROR": "[ER]",
-        }.get(r["status"], "[??]")
+        }.get(result["status"], "[??]")
         props = (
-            f"E={r['E_gpa']} Ys={r['yield_mpa']} UTS={r['uts_mpa']}"
-            if r["uts_mpa"]
-            else (r["fail_reason"] or "no props")[:50]
+            f"E={result['E_gpa']} Ys={result['yield_mpa']} UTS={result['uts_mpa']}"
+            if result["uts_mpa"]
+            else (result["fail_reason"] or "no properties")[:50]
         )
         print(
-            f"  [{i:3d}/{len(csv_files)}] {icon} {r['dir']}/{r['file'][:50]:50s} | {r['status']:15s} | {props}"
+            f"  [{index:3d}/{len(csv_files)}] {icon} "
+            f"{result['dir']}/{result['file'][:50]:50s} | "
+            f"{result['status']:15s} | {props}"
         )
 
-    # Özet
     print(f"\n{'=' * 80}")
-    print(f"SONUÇLAR ({len(csv_files)} dosya)")
+    print(f"RESULTS ({len(csv_files)} files)")
     print(f"{'=' * 80}")
     for status, count in sorted(status_counts.items()):
-        pct = count / len(csv_files) * 100
-        bar = "█" * int(pct / 2) + "░" * (50 - int(pct / 2))
+        pct = count / len(csv_files) * 100 if csv_files else 0
+        bar = "#" * int(pct / 2) + "-" * (50 - int(pct / 2))
         print(f"  {status:20s} {count:4d} ({pct:5.1f}%) {bar}")
 
-    # Fail nedenleri
     print(f"\n{'=' * 80}")
-    print("BAŞARISIZ DOSYALAR (NO_DATA + ERROR)")
+    print("FAILED FILES (NO_DATA + ERROR)")
     print(f"{'=' * 80}")
-    fails = [r for r in results if r["status"] in ("NO_DATA", "ERROR")]
-    if fails:
-        # Grup: neden
-        reasons = {}
-        for r in fails:
-            reason = r.get("fail_reason", "unknown") or "no stress-strain columns"
-            reasons.setdefault(reason[:60], []).append(r["file"])
-        for reason, files in sorted(reasons.items(), key=lambda x: -len(x[1])):
-            print(f"\n  [{len(files)} dosya] {reason}")
-            for fn in files[:5]:
-                print(f"    - {fn}")
+    failures = [result for result in results if result["status"] in ("NO_DATA", "ERROR")]
+    if failures:
+        reasons: dict[str, list[str]] = {}
+        for result in failures:
+            reason = result.get("fail_reason", "unknown") or "no stress-strain columns"
+            reasons.setdefault(reason[:60], []).append(result["file"])
+        for reason, files in sorted(reasons.items(), key=lambda item: -len(item[1])):
+            print(f"\n  [{len(files)} files] {reason}")
+            for filename in files[:5]:
+                print(f"    - {filename}")
             if len(files) > 5:
-                print(f"    ... ve {len(files) - 5} dosya daha")
+                print(f"    ... and {len(files) - 5} more")
 
-    # CSV export
-    with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+    with OUTPUT_CSV.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
-            f,
+            handle,
             fieldnames=[
                 "status",
                 "is_cyclic",
@@ -268,13 +290,13 @@ if __name__ == "__main__":
             ],
         )
         writer.writeheader()
-        for r in results:
-            row = dict(r)
-            row["missing_props"] = ",".join(r.get("missing_props", []))
-            row["warnings"] = " | ".join(r.get("warnings", []))
-            row["errors"] = " | ".join(r.get("errors", []))
+        for result in results:
+            row = dict(result)
+            row["missing_props"] = ",".join(result.get("missing_props", []))
+            row["warnings"] = " | ".join(result.get("warnings", []))
+            row["errors"] = " | ".join(result.get("errors", []))
             row.pop("has_data", None)
             row.pop("head_preview", None)
             writer.writerow(row)
 
-    print(f"\n[OUTPUT] Detaylı sonuçlar: {OUTPUT_CSV}")
+    print(f"\n[OUTPUT] Detailed diagnostic results: {OUTPUT_CSV}")

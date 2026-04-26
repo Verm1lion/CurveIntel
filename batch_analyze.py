@@ -1,9 +1,4 @@
-"""
-CurveIntel — Batch Analiz Motoru.
-
-Bir dizindeki tum CSV dosyalarini tarar, her biri icin tam pipeline
-calistirip PDF rapor + CSV/JSON export uretir.
-"""
+"""CurveIntel batch analysis utility."""
 
 from __future__ import annotations
 
@@ -13,13 +8,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.curveintel.manual_data import (
+    get_default_batch_input_dir,
+    get_default_batch_output_dir,
+)
+from src.pipeline.anomaly import (
+    CurveIntegrityChecker,
+    GripSlippageDetector,
+    NoiseAnalyzer,
+    PropertyValidator,
+    SensorSaturationDetector,
+)
 from src.pipeline.base import AnalysisContext, Pipeline
-from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
-from src.pipeline.preprocessing import (
-    Resampler,
-    SavitzkyGolayFilter,
-    SpikeFilter,
-    ToeCompensation,
+from src.pipeline.batch_qc import (
+    format_batch_summary,
+    generate_batch_plots,
+    run_batch_qc,
 )
 from src.pipeline.extraction import (
     ElasticModulusDetector,
@@ -31,27 +35,19 @@ from src.pipeline.extraction import (
     UTSDetector,
     YieldDetector,
 )
-from src.pipeline.anomaly import (
-    GripSlippageDetector,
-    SensorSaturationDetector,
-    NoiseAnalyzer,
-    CurveIntegrityChecker,
-    PropertyValidator,
+from src.pipeline.ingestion import DataLoader, SchemaDetector, UnitConverter
+from src.pipeline.preprocessing import (
+    Resampler,
+    SavitzkyGolayFilter,
+    SpikeFilter,
+    ToeCompensation,
 )
-from src.pipeline.reporting import (
-    generate_pdf_report,
-    export_results_json,
-    export_results_csv,
-)
-from src.pipeline.batch_qc import (
-    run_batch_qc,
-    format_batch_summary,
-    generate_batch_plots,
-)
+from src.pipeline.reporting import export_results_csv, export_results_json, generate_pdf_report
 
 
 def build_pipeline(csv_path: Path) -> Pipeline:
-    """Standart 19-adimlik pipeline olustur."""
+    """Build the default deterministic analysis pipeline."""
+
     return Pipeline(
         [
             DataLoader(csv_path),
@@ -79,38 +75,32 @@ def build_pipeline(csv_path: Path) -> Pipeline:
 
 
 def analyze_single(csv_path: Path, output_dir: Path) -> AnalysisContext | None:
-    """Tek bir CSV dosyasini analiz et ve raporla."""
+    """Analyze a single CSV file and export its artifacts."""
+
     pipeline = build_pipeline(csv_path)
     ctx = AnalysisContext()
     ctx = pipeline.run(ctx)
 
     stem = csv_path.stem
 
-    # PDF rapor
     pdf_path = output_dir / f"{stem}_report.pdf"
     try:
         generate_pdf_report(ctx, pdf_path)
-    except Exception as e:
-        print(f"  [!!] PDF hatasi: {e}")
+    except Exception as exc:
+        print(f"  [!!] PDF generation failed: {exc}")
 
-    # JSON export
     json_path = output_dir / f"{stem}_results.json"
     try:
         export_results_json(ctx, json_path)
-    except Exception as e:
-        print(f"  [!!] JSON hatasi: {e}")
+    except Exception as exc:
+        print(f"  [!!] JSON export failed: {exc}")
 
     return ctx
 
 
-def batch_analyze(input_dir: str | Path, output_dir: str | Path | None = None):
-    """
-    Bir dizindeki tum CSV dosyalarini batch olarak analiz et.
+def batch_analyze(input_dir: str | Path, output_dir: str | Path | None = None) -> None:
+    """Analyze every CSV file under a directory tree."""
 
-    Args:
-        input_dir: CSV dosyalarinin bulundugu dizin
-        output_dir: Raporlarin kaydedilecegi dizin (None ise input_dir/reports)
-    """
     input_dir = Path(input_dir)
     if output_dir is None:
         output_dir = input_dir / "curveintel_reports"
@@ -119,86 +109,89 @@ def batch_analyze(input_dir: str | Path, output_dir: str | Path | None = None):
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # CSV dosyalarini bul (alt dizinler dahil)
     csv_files = sorted(input_dir.rglob("*.csv"))
     csv_files = [
-        f
-        for f in csv_files
-        if "report" not in f.stem.lower()
-        and "summary" not in f.stem.lower()
-        and "map" not in f.stem.lower()
+        file_path
+        for file_path in csv_files
+        if "report" not in file_path.stem.lower()
+        and "summary" not in file_path.stem.lower()
+        and "map" not in file_path.stem.lower()
     ]
 
     if not csv_files:
-        print(f"  [XX] {input_dir} altinda CSV dosyasi bulunamadi.")
+        print(f"  [XX] No CSV files were found under {input_dir}.")
         return
 
     print("=" * 70)
-    print("  CurveIntel Batch Analiz")
-    print(f"  Dizin: {input_dir}")
-    print(f"  CSV sayisi: {len(csv_files)}")
-    print(f"  Cikti: {output_dir}")
+    print("  CurveIntel Batch Analysis")
+    print(f"  Input directory: {input_dir}")
+    print(f"  CSV files: {len(csv_files)}")
+    print(f"  Output directory: {output_dir}")
     print("=" * 70)
 
-    # Ozet CSV yolu
     summary_csv = output_dir / "batch_summary.csv"
     if summary_csv.exists():
-        summary_csv.unlink()  # Eski ozeti sil
+        summary_csv.unlink()
 
     success_count = 0
     fail_count = 0
-    all_contexts = []
+    all_contexts: list[AnalysisContext] = []
     t_total = time.perf_counter()
 
-    for i, csv_path in enumerate(csv_files, 1):
+    for index, csv_path in enumerate(csv_files, 1):
         rel = csv_path.relative_to(input_dir)
-        print(f"\n  [{i}/{len(csv_files)}] {rel}")
+        print(f"\n  [{index}/{len(csv_files)}] {rel}")
 
         t0 = time.perf_counter()
         try:
             ctx = analyze_single(csv_path, output_dir)
             if ctx and ctx.has_data:
-                # Ozet CSV'ye ekle
                 export_results_csv(ctx, summary_csv)
 
-                p = ctx.properties
-                uts = f"{p.ultimate_tensile_mpa:.0f}" if p.ultimate_tensile_mpa else "---"
-                ys = f"{p.yield_strength_mpa:.0f}" if p.yield_strength_mpa else "---"
+                properties = ctx.properties
+                uts = (
+                    f"{properties.ultimate_tensile_mpa:.0f}"
+                    if properties.ultimate_tensile_mpa
+                    else "---"
+                )
+                ys = (
+                    f"{properties.yield_strength_mpa:.0f}"
+                    if properties.yield_strength_mpa
+                    else "---"
+                )
                 dt = (time.perf_counter() - t0) * 1000
 
                 print(f"         [OK] UTS={uts} MPa, Yield={ys} MPa | {dt:.0f} ms")
                 success_count += 1
                 all_contexts.append(ctx)
             else:
-                print("         [XX] Pipeline veri uretmedi")
+                print("         [XX] Pipeline produced no usable data")
                 fail_count += 1
-        except Exception as e:
-            print(f"         [XX] Hata: {e}")
+        except Exception as exc:
+            print(f"         [XX] Error: {exc}")
             fail_count += 1
 
     total_time = time.perf_counter() - t_total
 
     print("\n" + "=" * 70)
-    print("  BATCH SONUC")
-    print(f"  Basarili: {success_count}/{len(csv_files)}")
-    print(f"  Basarisiz: {fail_count}/{len(csv_files)}")
-    print(f"  Toplam sure: {total_time:.1f} s")
-    print(f"  Ozet CSV: {summary_csv}")
-    print(f"  Raporlar: {output_dir}")
+    print("  BATCH RESULT")
+    print(f"  Successful: {success_count}/{len(csv_files)}")
+    print(f"  Failed: {fail_count}/{len(csv_files)}")
+    print(f"  Total time: {total_time:.1f} s")
+    print(f"  Summary CSV: {summary_csv}")
+    print(f"  Reports: {output_dir}")
     print("=" * 70)
 
-    # ─── Batch QC Analizi ───
     if all_contexts and len(all_contexts) >= 2:
-        print("\n  [QC] Batch istatistik analizi baslatiliyor...")
+        print("\n  [QC] Running batch quality-control analysis...")
         qc_report = run_batch_qc(all_contexts)
         print(format_batch_summary(qc_report))
 
-        # Overlay + Box-whisker grafikleri
         plot_files = generate_batch_plots(all_contexts, qc_report, output_dir)
-        for pf in plot_files:
-            print(f"  [GRAFIK] {pf.name}")
+        for plot_file in plot_files:
+            print(f"  [PLOT] {plot_file.name}")
     else:
-        print("\n  [QC] Batch QC icin en az 2 basarili numune gerekli.")
+        print("\n  [QC] At least two successful samples are required for batch QC.")
 
 
 if __name__ == "__main__":
@@ -207,7 +200,8 @@ if __name__ == "__main__":
         output_path = sys.argv[2] if len(sys.argv) > 2 else None
         batch_analyze(input_path, output_path)
     else:
-        # Varsayilan: NIST verisini test et
-        nist_dir = Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\veri_setleri\nist_numisheet")
-        output = Path(r"c:\Users\MSI\Desktop\Test_Cihazlari_Proje\curveintel\reports")
-        batch_analyze(nist_dir, output)
+        default_input = get_default_batch_input_dir()
+        default_output = get_default_batch_output_dir()
+        print(f"[INFO] Using default input directory: {default_input}")
+        print(f"[INFO] Using default output directory: {default_output}")
+        batch_analyze(default_input, default_output)

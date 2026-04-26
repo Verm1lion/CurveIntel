@@ -12,6 +12,10 @@
 - [x] Docker giris akisi migration-first mantigina sahip
 - [x] Repo A/B/C paketlerine ayrildi ve ayri commit akislari olusturuldu
 - [x] Canli Docker/PostgreSQL smoke dogrulamasi tamamlandi
+- [x] Manual smoke/test scriptleri artik local absolute path icermiyor
+- [x] Ayrintili durum + kullanim + operator akisi dokumani eklendi
+- [x] `v2.0.0` baseline release notes taslagi eklendi
+- [x] Local `origin` remote URL tokenless HTTPS formatina cekildi
 
 ---
 
@@ -32,6 +36,13 @@
 - [x] `examples/README.md`
 - [x] `examples/sample_nist.csv`
 - [x] `pyproject.toml` v2.0.0 metadata
+
+### 1.4 Public Push Readiness
+- [x] manual smoke scriptlerinden local Windows path'leri kaldirildi
+- [x] `CURVEINTEL_DATASET_ROOT` tabanli optional dataset resolution eklendi
+- [x] `docs/current_status_and_usage.md` ile gercek kullanim akisi yazildi
+- [x] `docs/release_notes_v2.0.0.md` ile release body taslagi hazirlandi
+- [x] local Git remote icindeki embedded token kaldirildi
 
 ---
 
@@ -144,6 +155,7 @@
 - [x] `Dockerfile`, `docker-compose.yml`, `docker-entrypoint.sh`
 - [x] `.env.example`, `.gitignore`, `.github/workflows/ci.yml`
 - [x] `README.md`, `CHANGELOG.md`, `docs/vendor_integration.md`
+- [x] `docs/current_status_and_usage.md`
 - [x] `web/templates/dashboard.html`, `web/templates/guide.html`
 - [x] `examples/README.md`, `examples/sample_nist.csv`
 - [x] hardening dokumani olarak `planlar.md`
@@ -191,6 +203,7 @@
 
 ### Paket C: `admin-backoffice-phase-1`
 - [x] Amac: baseline sabitlendikten sonra ilk urunsel gelistirme fazina gecmek
+- [x] Commit: `23ef866` (`Add admin backoffice controls`)
 - [x] Hedefler:
   kullanici listeleme/yonetme, audit filtreleme ve detay gorunumu, role-aware dashboard sadelestirmesi
 
@@ -198,17 +211,15 @@
 
 ## Sonraki Mantikli Adimlar
 
-1. `Paket C` commitini tamamla ve repo'yu temiz working tree durumuna getir.
-2. `v2.0.0` tag/release stratejisini yeni commit zincirine gore netlestir.
-3. GitHub repo ops islerini kapat:
-   - topics/description/discussions
-   - branch protection
-   - issue labels / good-first-issues
-4. Demo deployment ve release notlarini hazirla.
+1. Public-readiness commitini push et ve `v2.0.0` tag/release yayinini yap.
+2. GitHub repo ops islerini kapat:
+   topics/description/discussions, branch protection, issue labels, good-first-issues.
+3. Demo deployment ve release notlarini hazirla.
 
 ### Uygulama Notu
-- A ve B commitleri ayrildi; C de ayri feature commit olarak kapanacak.
-- Sonraki teknik isler artik baseline stabilizasyonu degil, release/ops odakli.
+- A, B ve C commitleri ayrildi; teknik baseline tamamlandi.
+- Release notes taslagi localde hazir; GitHub release yayini authenticated GitHub access gerektiriyor.
+- Sonraki teknik isler baseline stabilizasyonu degil, release/ops odakli.
 
 ---
 
@@ -218,7 +229,9 @@
 - [ ] branch protection
 - [ ] issue labels ve good-first-issues
 - [ ] demo deployment
-- [ ] `v2.0.0` tag/release stratejisini yeni baseline commit'ine gore netlestir
+- [x] `v2.0.0` tag/release stratejisi yeni baseline commit'ine gore netlestirildi
+- [x] `v2.0.0` release notes taslagi hazirlandi
+- [ ] `v2.0.0` tag ve GitHub release yayini
 
 ---
 
@@ -229,4 +242,4 @@
 
 ---
 
-**Son guncelleme:** 23 Nisan 2026 - Paket A/B commitlendi, Paket C kodu tamamlandi, release/ops kuyruğu kaldı
+**Son guncelleme:** 27 Nisan 2026 - Public push readiness kapanis paketi hazirlandi; release notes taslagi eklendi, local remote tokenless hale getirildi; GitHub publish/ops ve demo deployment kuyrugu kaldi
