@@ -114,3 +114,5 @@ def manual_dataset_help() -> str:
         "`nist_numisheet/` and any optional reference folders. When the variable "
         "is not set, some manual smoke scripts fall back to `examples/sample_nist.csv`."
     )
+
+// Contributed via automated bounty system
