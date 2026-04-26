@@ -16,6 +16,8 @@
 - [x] Ayrintili durum + kullanim + operator akisi dokumani eklendi
 - [x] `v2.0.0` baseline release notes taslagi eklendi
 - [x] Local `origin` remote URL tokenless HTTPS formatina cekildi
+- [x] GitHub `main`, `v2.0.0` tag/release ve branch protection yayina alindi
+- [x] Docker/PostgreSQL smoke sirasinda yakalanan NumPy scalar persist bug'i duzeltildi
 
 ---
 
@@ -211,27 +213,28 @@
 
 ## Sonraki Mantikli Adimlar
 
-1. Public-readiness commitini push et ve `v2.0.0` tag/release yayinini yap.
-2. GitHub repo ops islerini kapat:
-   topics/description/discussions, branch protection, issue labels, good-first-issues.
-3. Demo deployment ve release notlarini hazirla.
+1. PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.
+2. GitHub repo ops'ta kalan dusuk riskli hijyen islerini kapat:
+   issue labels ve 2-3 good-first-issue.
+3. Istenirse local Docker disinda demo deployment hazirla.
 
 ### Uygulama Notu
 - A, B ve C commitleri ayrildi; teknik baseline tamamlandi.
-- Release notes taslagi localde hazir; GitHub release yayini authenticated GitHub access gerektiriyor.
-- Sonraki teknik isler baseline stabilizasyonu degil, release/ops odakli.
+- GitHub release yayinda; branch protection ve CI required checks ayarlandi.
+- Local Docker/PostgreSQL demo uvicorn'a gore daha gercekci kabul edildi ve bu akista dogrulandi.
+- Sonraki teknik isler baseline stabilizasyonu degil, release/ops hijyeni odakli.
 
 ---
 
 ## Release Sonrasi / Ops
 
-- [ ] GitHub repo topics + description + discussions
-- [ ] branch protection
+- [x] GitHub repo topics + description
+- [x] branch protection
 - [ ] issue labels ve good-first-issues
-- [ ] demo deployment
+- [/] local Docker demo dogrulandi; harici demo deployment opsiyonel
 - [x] `v2.0.0` tag/release stratejisi yeni baseline commit'ine gore netlestirildi
 - [x] `v2.0.0` release notes taslagi hazirlandi
-- [ ] `v2.0.0` tag ve GitHub release yayini
+- [x] `v2.0.0` tag ve GitHub release yayini
 
 ---
 
@@ -242,4 +245,4 @@
 
 ---
 
-**Son guncelleme:** 27 Nisan 2026 - Public push readiness kapanis paketi hazirlandi; release notes taslagi eklendi, local remote tokenless hale getirildi; GitHub publish/ops ve demo deployment kuyrugu kaldi
+**Son guncelleme:** 27 Nisan 2026 - Local Docker/PostgreSQL demo smoke gecti; NumPy scalar persist bug'i duzeltildi; GitHub release ve branch protection yayinda, kalan isler issue hijyeni ve opsiyonel harici demo deployment.

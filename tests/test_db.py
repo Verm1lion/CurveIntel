@@ -238,6 +238,22 @@ def test_legacy_ctx_to_dict_payload_is_backward_compatible(tmp_path: Path) -> No
     assert hydrated["analysis_payload"]["filename"] == "legacy.csv"
 
 
+def test_analysis_snapshot_coerces_numpy_scalars_for_postgres() -> None:
+    """Indexed DB fields should not leak NumPy scalar representations to SQL drivers."""
+
+    ctx = build_sample_context()
+    ctx.properties.elastic_modulus_gpa = np.float64(206.3)
+    ctx.properties.ultimate_tensile_mpa = np.float64(818.0)
+    ctx.properties.toughness_mj_m3 = np.float64(133.12)
+
+    snapshot = build_analysis_snapshot_from_context(ctx, filename="numpy-scalars.csv")
+
+    assert type(snapshot.elastic_modulus_gpa) is float
+    assert type(snapshot.ultimate_tensile_mpa) is float
+    assert type(snapshot.toughness_mj_m3) is float
+    assert type(snapshot.analysis_payload["properties"]["elastic_modulus_gpa"]) is float
+
+
 def test_persisted_context_snapshot_can_rehydrate_analysis_context(tmp_path: Path) -> None:
     """Persisted snapshots should reconstruct a usable AnalysisContext for reports."""
 

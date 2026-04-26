@@ -46,6 +46,17 @@ def _ensure_json_serializable(value: dict[str, Any], field_name: str) -> dict[st
     return value
 
 
+def _coerce_optional_float(value: Any) -> float | None:
+    """Coerce numeric payload values to native floats for DB drivers."""
+
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class UserCreate(BaseModel):
     """Validated input for creating a user record."""
 
@@ -184,51 +195,51 @@ class AnalysisSnapshotCreate(BaseModel):
         self.stress_type = self.stress_type or str(
             payload.get("stress_type") or context_metadata.get("stress_type") or "engineering"
         )
-        self.quality_score = (
+        self.quality_score = _coerce_optional_float(
             self.quality_score if self.quality_score is not None else quality.get("score")
         )
         self.quality_grade = self.quality_grade or quality.get("grade")
-        self.elastic_modulus_gpa = (
+        self.elastic_modulus_gpa = _coerce_optional_float(
             self.elastic_modulus_gpa
             if self.elastic_modulus_gpa is not None
             else props.get("elastic_modulus_gpa")
         )
-        self.yield_strength_mpa = (
+        self.yield_strength_mpa = _coerce_optional_float(
             self.yield_strength_mpa
             if self.yield_strength_mpa is not None
             else props.get("yield_strength_mpa")
         )
-        self.yield_lower_mpa = (
+        self.yield_lower_mpa = _coerce_optional_float(
             self.yield_lower_mpa
             if self.yield_lower_mpa is not None
             else props.get("yield_lower_mpa")
         )
-        self.ultimate_tensile_mpa = (
+        self.ultimate_tensile_mpa = _coerce_optional_float(
             self.ultimate_tensile_mpa
             if self.ultimate_tensile_mpa is not None
             else props.get("ultimate_tensile_mpa")
         )
-        self.elongation_at_break_pct = (
+        self.elongation_at_break_pct = _coerce_optional_float(
             self.elongation_at_break_pct
             if self.elongation_at_break_pct is not None
             else props.get("elongation_at_break_pct")
         )
-        self.uniform_elongation_pct = (
+        self.uniform_elongation_pct = _coerce_optional_float(
             self.uniform_elongation_pct
             if self.uniform_elongation_pct is not None
             else props.get("uniform_elongation_pct")
         )
-        self.strain_hardening_n = (
+        self.strain_hardening_n = _coerce_optional_float(
             self.strain_hardening_n
             if self.strain_hardening_n is not None
             else props.get("strain_hardening_n")
         )
-        self.strength_coefficient_k = (
+        self.strength_coefficient_k = _coerce_optional_float(
             self.strength_coefficient_k
             if self.strength_coefficient_k is not None
             else props.get("strength_coefficient_k")
         )
-        self.toughness_mj_m3 = (
+        self.toughness_mj_m3 = _coerce_optional_float(
             self.toughness_mj_m3
             if self.toughness_mj_m3 is not None
             else props.get("toughness_mj_m3")
