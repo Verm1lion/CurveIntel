@@ -7,23 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Baseline Hardening:** GitHub Actions PostgreSQL smoke job for the DB/auth/audit flow
-- **Examples:** `examples/sample_nist.csv` compact smoke-test fixture
-- **Admin Backoffice:** User management API/UI, filtered audit inspection, and role-aware dashboard workspace states
-
-### Changed
-- **Runtime Documentation:** README, env template, and guide copy aligned with the database-backed persistence model
-- **Web UI Copy:** Guide and dashboard legal text aligned with persisted results, RBAC, and audit-trail behavior
-- **Repo Hygiene:** Coverage artifacts are now ignored by default
-- **Dashboard:** Admins can manage users and audit views without leaving the main app surface
+_No unreleased changes._
 
 ## [2.0.0] - 2026-04-22
-
-### Changed
-- **Open Source Release:** Project relicensed from Proprietary to MIT License
-- **README:** Complete rewrite in English with badges, pipeline diagram, validation results
-- **pyproject.toml:** Updated to v2.0.0 with proper classifiers, URLs, and MIT license
 
 ### Added
 - **LICENSE** — MIT License
@@ -31,7 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CODE_OF_CONDUCT.md** — Contributor Covenant v2.1
 - **SECURITY.md** — Vulnerability reporting policy
 - **GitHub Templates** — Bug report, feature request, vendor support, PR template
-- **examples/** — Sample CSV data directory
+- **examples/** — Sample CSV data directory with `examples/sample_nist.csv` compact smoke-test fixture
+- **Baseline Hardening:** GitHub Actions PostgreSQL smoke job for the DB/auth/audit flow
+- **Admin Backoffice:** User management API/UI, filtered audit inspection, and role-aware dashboard workspace states
+- **PostgreSQL Fix:** Coerce NumPy scalar values to native Python floats before DB persistence
+
+### Changed
+- **Open Source Release:** Project relicensed from Proprietary to MIT License
+- **README:** Complete rewrite in English with badges, pipeline diagram, validation results
+- **pyproject.toml:** Updated to v2.0.0 with proper classifiers, URLs, and MIT license
+- **Runtime Documentation:** README, env template, and guide copy aligned with the database-backed persistence model
+- **Web UI Copy:** Guide and dashboard legal text aligned with persisted results, RBAC, and audit-trail behavior
+- **Repo Hygiene:** Coverage artifacts are now ignored by default
+- **Dashboard:** Admins can manage users and audit views without leaving the main app surface
 
 ### Removed
 - Debug scripts (`debug_score.py`, `debug_worst.py`, `diag_summary.py`)

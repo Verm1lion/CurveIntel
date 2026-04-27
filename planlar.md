@@ -213,16 +213,17 @@
 
 ## Sonraki Mantikli Adimlar
 
-1. PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.
-2. GitHub repo ops'ta kalan dusuk riskli hijyen islerini kapat:
-   issue labels ve 2-3 good-first-issue.
+1. ~~PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.~~ **TAMAMLANDI** — PR #7 merged, `v2.0.0` tag `d9625d1` commit'ine tasinarak release guncellendi.
+2. ~~GitHub repo ops'ta kalan dusuk riskli hijyen islerini kapat: issue labels ve 2-3 good-first-issue.~~ **TAMAMLANDI** — `ops` ve `security` labellari eklendi, 3 good-first-issue (#8, #9, #10) olusturuldu.
 3. Istenirse local Docker disinda demo deployment hazirla.
 
 ### Uygulama Notu
 - A, B ve C commitleri ayrildi; teknik baseline tamamlandi.
 - GitHub release yayinda; branch protection ve CI required checks ayarlandi.
 - Local Docker/PostgreSQL demo uvicorn'a gore daha gercekci kabul edildi ve bu akista dogrulandi.
-- Sonraki teknik isler baseline stabilizasyonu degil, release/ops hijyeni odakli.
+- PR #7 (`codex/postgres-numeric-snapshot` -> `main`) 5/5 CI check gecerek merge edildi.
+- `v2.0.0` tag ve release `d9625d1` merge commit'ine tasinarak guncellendi.
+- Issue hijyeni tamamlandi: labels + 3 good-first-issue.
 
 ---
 
@@ -230,11 +231,12 @@
 
 - [x] GitHub repo topics + description
 - [x] branch protection
-- [ ] issue labels ve good-first-issues
-- [/] local Docker demo dogrulandi; harici demo deployment opsiyonel
+- [x] issue labels ve good-first-issues (#8, #9, #10)
+- [x] local Docker demo dogrulandi; harici demo deployment opsiyonel
 - [x] `v2.0.0` tag/release stratejisi yeni baseline commit'ine gore netlestirildi
 - [x] `v2.0.0` release notes taslagi hazirlandi
-- [x] `v2.0.0` tag ve GitHub release yayini
+- [x] `v2.0.0` tag ve GitHub release yayini — tag `d9625d1` commit'ine tasinarak guncellendi
+- [x] PR #7 merge — `codex/postgres-numeric-snapshot` -> `main`, 5/5 CI checks passed
 
 ---
 
@@ -245,4 +247,4 @@
 
 ---
 
-**Son guncelleme:** 27 Nisan 2026 - Local Docker/PostgreSQL demo smoke gecti; NumPy scalar persist bug'i duzeltildi; GitHub release ve branch protection yayinda, kalan isler issue hijyeni ve opsiyonel harici demo deployment.
+**Son guncelleme:** 27 Nisan 2026 - PR #7 merged (5/5 CI checks passed), `v2.0.0` tag `d9625d1`'e tasinarak release guncellendi, issue labels ve 3 good-first-issue (#8, #9, #10) olusturuldu. Kalan tek is: opsiyonel harici demo deployment.
