@@ -20,7 +20,7 @@ class WebSettings(BaseSettings):
 
     curveintel_env: str = Field(default="development", validation_alias="CURVEINTEL_ENV")
     cors_allow_origins_raw: str = Field(
-        default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+        default="http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
         validation_alias="CORS_ALLOW_ORIGINS",
     )
     cors_allow_methods_raw: str = Field(

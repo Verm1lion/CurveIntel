@@ -42,33 +42,42 @@ See [docs/vendor_integration.md](docs/vendor_integration.md) for the actual prof
 
 1. Create a virtual environment and install the project.
 
-```bash
+```shell
+# Windows
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e .[dev]
+
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
 2. Copy the environment template and set the required values.
 
-```bash
+```shell
+# Windows
 copy .env.example .env
+
+# macOS / Linux
+cp .env.example .env
 ```
 
-At minimum, set:
+The template defaults to SQLite, so local development works out of the box. At minimum, review:
 
-- `JWT_SECRET_KEY`
-- `DATABASE_URL` if you do not want the default PostgreSQL value
-- `AUTH_BOOTSTRAP_ADMIN_PASSWORD` if you want a startup-seeded admin instead of the `/login` bootstrap form
+- `JWT_SECRET_KEY` — change from the placeholder for any non-throwaway use
+- `AUTH_BOOTSTRAP_ADMIN_PASSWORD` — set if you want a startup-seeded admin instead of the `/login` bootstrap form
 
 3. Prepare the schema before starting the app.
 
-```bash
+```shell
 alembic upgrade head
 ```
 
 4. Run the web app.
 
-```bash
+```shell
 uvicorn web.app:app --reload
 ```
 
@@ -79,9 +88,11 @@ Open `http://localhost:8000`.
 1. Copy `.env.example` to `.env` and set `JWT_SECRET_KEY`.
 2. Start the stack.
 
-```bash
+```shell
 docker compose up --build -d
 ```
+
+The Docker Compose file sets `DATABASE_URL` to PostgreSQL automatically, overriding the SQLite default in `.env`.
 
 The `curveintel` container runs `alembic upgrade head` before starting `uvicorn`, so the schema is created or upgraded automatically.
 
