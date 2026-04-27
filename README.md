@@ -36,6 +36,7 @@ See [docs/vendor_integration.md](docs/vendor_integration.md) for the actual prof
 ## Examples
 
 - `examples/sample_nist.csv` is a compact NIST-style sample intended for local smoke runs and demos.
+- `examples/C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv` is a full public NIST Numisheet stress-strain sample for realistic browser uploads.
 - See [examples/README.md](examples/README.md) for usage notes and provenance.
 
 ## Local Development
@@ -82,6 +83,13 @@ uvicorn web.app:app --reload
 ```
 
 Open `http://localhost:8000`.
+
+To try the browser workflow with bundled data:
+
+1. Open `/login` and bootstrap the first admin account if the database is empty.
+2. Open the dashboard at `/`.
+3. Upload `examples/C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv`.
+4. Confirm the result appears in the archive, then download the generated PDF report.
 
 ## Docker and PostgreSQL
 
@@ -166,6 +174,7 @@ Run the full suite:
 
 ```bash
 pytest -q
+pytest --cov=src --cov=web --cov-report=term-missing -q
 ```
 
 The current suite covers:

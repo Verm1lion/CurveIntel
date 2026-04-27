@@ -40,8 +40,17 @@ uploads/*.pdf
 
 # Environment
 .env
+.env.*
+!.env.example
 .env.local
 .env.production
+
+# Local debug/smoke scratch files
+.github/debug_*.py
+.github/debug_*.ps1
+check_bootstrap.py
+test_ui.py
+verify_ui.py
 
 # Test artifacts
 tests/*.png

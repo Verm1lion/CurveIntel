@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No unreleased changes._
 
+## [2.0.1] - 2026-04-27
+
+### Added
+- Full public NIST Numisheet stress-strain CSV under `examples/` for browser upload demos.
+- Regression coverage for bundled example data, safe PDF download filenames, dashboard user-creation controls, and validation-error serialization.
+
+### Changed
+- Package version bumped to `2.0.1` for patch-release preparation.
+- README, examples, contributor, CI, and status docs aligned with the current `src` + `web` coverage command.
+- Web package metadata now includes HTML templates for installed-package usage.
+
+### Removed
+- Stale internal remaining-work handoff document that described already-completed PR and tag operations.
+
 ## [2.0.0] - 2026-04-22
 
 ### Added

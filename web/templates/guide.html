@@ -121,9 +121,6 @@
         </div>
         <div class="hidden md:flex gap-6 items-center">
             <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="/">Dashboard</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Analytics</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Materials</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Archive</a>
             <a class="font-inter tracking-tight text-blue-400 border-b-2 border-blue-400 pb-1" href="/guide">Guide</a>
         </div>
     </div>
@@ -156,7 +153,7 @@
                 <span class="text-on-surface">Analiz Motoru</span>
             </h1>
             <p class="text-on-surface-variant text-lg leading-relaxed mb-8 max-w-md">
-                Mekanik test verilerinizi yükleyin. 20 adımlık pipeline ile saniyeler içinde 
+                Mekanik test verilerinizi yükleyin. 21 adımlık pipeline ile saniyeler içinde
                 <strong class="text-on-surface">7 mekanik özellik</strong> hesaplayın, 
                 <strong class="text-on-surface">anomalileri</strong> tespit edin ve 
                 ISO uyumlu <strong class="text-on-surface">PDF rapor</strong> alın.
@@ -328,7 +325,7 @@
                 </div>
                 <h3 class="text-lg font-bold mb-3">Pipeline Otomatik Çalışır</h3>
                 <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
-                    20 adımlı analiz pipeline'ı veriyi uçtan uca işler. Vendor tespiti, birim dönüşümü, filtreleme, 
+                    21 adımlı analiz pipeline'ı veriyi uçtan uca işler. Vendor tespiti, birim dönüşümü, filtreleme,
                     özellik hesaplama ve anomali kontrolü tamamen otomatiktir.
                 </p>
                 <div class="glass-panel-light rounded-lg p-4">
@@ -591,7 +588,7 @@
     <div class="text-center mb-14 reveal">
         <span class="text-xs font-semibold tracking-[0.2em] text-primary/60 uppercase">Teknik</span>
         <h2 class="text-3xl font-extrabold tracking-tight mt-3">Pipeline: Veriye Ne Olur?</h2>
-        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">CSV dosyanız bu 20 adımdan geçer. Her adım veriyi bir sonraki için hazırlar.</p>
+        <p class="text-on-surface-variant mt-3 max-w-xl mx-auto">CSV dosyanız bu 21 adımdan geçer. Her adım veriyi bir sonraki için hazırlar.</p>
     </div>
 
     <div class="relative max-w-2xl mx-auto">
@@ -609,15 +606,15 @@
         <div class="ml-14 space-y-2 mb-8">
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-blue-300 font-mono w-40 shrink-0">DataLoader</code>
-                <span class="text-xs text-on-surface-variant">CSV dosyasını okur, encoding'i otomatik tespit eder (UTF-8, CP1252, Shift-JIS...)</span>
+                <span class="text-xs text-on-surface-variant">CSV dosyasını okur, encoding'i otomatik tespit eder</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-blue-300 font-mono w-40 shrink-0">SchemaDetector</code>
-                <span class="text-xs text-on-surface-variant">Kolon isimlerini analiz eder, test cihazı markasını ve veri şemasını belirler</span>
+                <span class="text-xs text-on-surface-variant">Test cihazı markasını ve veri şemasını belirler</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-blue-300 font-mono w-40 shrink-0">UnitConverter</code>
-                <span class="text-xs text-on-surface-variant">kN → MPa, mm → strain gibi birim dönüşümlerini uygular</span>
+                <span class="text-xs text-on-surface-variant">kN → MPa, mm → strain birim dönüşümlerini uygular</span>
             </div>
         </div>
 
@@ -632,15 +629,11 @@
         <div class="ml-14 space-y-2 mb-8">
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-violet-300 font-mono w-40 shrink-0">SpikeFilter</code>
-                <span class="text-xs text-on-surface-variant">Ölçüm spike'larını median filtre ile temizler</span>
-            </div>
-            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
-                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">MonotonicityChecker</code>
-                <span class="text-xs text-on-surface-variant">Siklik/ratcheting veriyi tespit eder — çekme testi değilse uyarır</span>
+                <span class="text-xs text-on-surface-variant">Ölçüm sıçramalarını median filtre ile temizler</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-violet-300 font-mono w-40 shrink-0">ToeCompensation</code>
-                <span class="text-xs text-on-surface-variant">Eğrinin baş bölgesindeki yerleşme etkisini düzeltir</span>
+                <span class="text-xs text-on-surface-variant">Eğrinin baş bölgesindeki yerleşme (slack) etkisini düzeltir</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-violet-300 font-mono w-40 shrink-0">Resampler</code>
@@ -648,7 +641,11 @@
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-violet-300 font-mono w-40 shrink-0">SavitzkyGolayFilter</code>
-                <span class="text-xs text-on-surface-variant">21 noktalık pencere ile gürültüyü azaltır, eğri şeklini korur</span>
+                <span class="text-xs text-on-surface-variant">Eğri şeklini koruyarak sensör gürültüsünü filtreler</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-violet-300 font-mono w-40 shrink-0">MonotonicityChecker</code>
+                <span class="text-xs text-on-surface-variant">Siklik veriyi tespit eder, çekme testi değilse uyarır</span>
             </div>
         </div>
 
@@ -662,24 +659,36 @@
 
         <div class="ml-14 space-y-2 mb-8">
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
-                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ElasticModulus</code>
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ElasticModulusDetector</code>
                 <span class="text-xs text-on-surface-variant">E modülünü hesaplar (OLS regresyon, Annex G)</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">YieldDetector</code>
-                <span class="text-xs text-on-surface-variant">%0.2 offset veya ReH/ReL süreksiz akma tespiti</span>
+                <span class="text-xs text-on-surface-variant">%0.2 offset veya ReH/ReL süreksiz akma tespiti yapar</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">UTSDetector</code>
-                <span class="text-xs text-on-surface-variant">Çekme dayanımı (max stress noktası)</span>
+                <span class="text-xs text-on-surface-variant">Çekme dayanımını (max stres noktası) bulur</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ElongationDetector</code>
-                <span class="text-xs text-on-surface-variant">Toplam ve uniform uzama hesabı</span>
+                <span class="text-xs text-on-surface-variant">Toplam kopma uzamasını hesaplar</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
-                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">Hardening + Tokluk</code>
-                <span class="text-xs text-on-surface-variant">Hollomon n-K pekleşme üssü + trapez entegrasyonla tokluk</span>
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">NeckingDetector</code>
+                <span class="text-xs text-on-surface-variant">Boyun verme noktasını ve uniform uzamayı tespit eder</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">StrainHardeningFitter</code>
+                <span class="text-xs text-on-surface-variant">Hollomon n-K pekleşme katsayılarını hesaplar</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">ToughnessCalculator</code>
+                <span class="text-xs text-on-surface-variant">Trapez entegrasyonla kırılma tokluğunu bulur</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-emerald-300 font-mono w-40 shrink-0">StrainRateValidator</code>
+                <span class="text-xs text-on-surface-variant">Test hızının ISO limitlerinde olup olmadığını kontrol eder</span>
             </div>
         </div>
 
@@ -693,16 +702,24 @@
 
         <div class="ml-14 space-y-2 mb-4">
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
-                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">GripSlippage</code>
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">GripSlippageDetector</code>
                 <span class="text-xs text-on-surface-variant">Kavrama kayması anomalisini tespit eder</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">SensorSaturationDetector</code>
+                <span class="text-xs text-on-surface-variant">Load cell kapasite aşımı / veri kesilmelerini algılar</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-orange-300 font-mono w-40 shrink-0">NoiseAnalyzer</code>
-                <span class="text-xs text-on-surface-variant">SNR (sinyal/gürültü oranı) hesaplar</span>
+                <span class="text-xs text-on-surface-variant">Sinyal/gürültü oranını (SNR) hesaplar</span>
+            </div>
+            <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
+                <code class="text-xs text-orange-300 font-mono w-40 shrink-0">CurveIntegrityChecker</code>
+                <span class="text-xs text-on-surface-variant">Veri kaybı veya anlamsız düşüşleri kontrol eder</span>
             </div>
             <div class="glass-panel-light rounded-lg px-5 py-3 flex items-center gap-4 reveal">
                 <code class="text-xs text-orange-300 font-mono w-40 shrink-0">PropertyValidator</code>
-                <span class="text-xs text-on-surface-variant">Hesaplanan değerlerin fiziksel tutarlılığını doğrular</span>
+                <span class="text-xs text-on-surface-variant">Hesaplanan özelliklerin fiziksel tutarlılığını doğrular</span>
             </div>
         </div>
     </div>

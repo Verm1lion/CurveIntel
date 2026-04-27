@@ -40,6 +40,7 @@
                 <div id="notice" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
 
                 <div class="space-y-8">
+                    {% if not bootstrap_mode %}
                     <div>
                         <h2 class="text-2xl font-semibold">Sign in</h2>
                         <p class="mt-2 text-sm text-slate-400">Use your CurveIntel credentials to access the dashboard and API.</p>
@@ -57,8 +58,7 @@
                             </button>
                         </form>
                     </div>
-
-                    {% if bootstrap_mode %}
+                    {% else %}
                     <div class="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5">
                         <h3 class="text-lg font-semibold text-amber-200">Bootstrap first admin</h3>
                         <p class="mt-2 text-sm text-amber-100/80">
@@ -125,16 +125,19 @@
             return data;
         }
 
-        document.getElementById("login-form").addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const formData = new FormData(event.currentTarget);
-            try {
-                await submitJson("/api/auth/login", Object.fromEntries(formData.entries()));
-                window.location.href = "/";
-            } catch (error) {
-                showNotice("error", error.message);
-            }
-        });
+        const loginForm = document.getElementById("login-form");
+        if (loginForm) {
+            loginForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                try {
+                    await submitJson("/api/auth/login", Object.fromEntries(formData.entries()));
+                    window.location.href = "/";
+                } catch (error) {
+                    showNotice("error", error.message);
+                }
+            });
+        }
 
         const bootstrapForm = document.getElementById("bootstrap-form");
         if (bootstrapForm) {
@@ -143,8 +146,8 @@
                 const formData = new FormData(event.currentTarget);
                 try {
                     await submitJson("/api/auth/register", Object.fromEntries(formData.entries()));
-                    showNotice("success", "Admin user created. Sign in with the credentials you just set.");
-                    event.currentTarget.reset();
+                    showNotice("success", "Admin created successfully. Loading login page...");
+                    setTimeout(() => window.location.reload(), 1500);
                 } catch (error) {
                     showNotice("error", error.message);
                 }

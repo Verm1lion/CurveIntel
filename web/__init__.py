@@ -1,0 +1,1 @@
+"""CurveIntel web application package."""

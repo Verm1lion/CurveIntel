@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 ### Running Tests
 
 ```bash
-pytest --cov=src --cov-report=term-missing
+pytest --cov=src --cov=web --cov-report=term-missing
 ```
 
 ### Code Style
