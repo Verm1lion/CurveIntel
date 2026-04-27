@@ -580,6 +580,7 @@ async def dashboard(
         else []
     )
     admin_users = _get_user_payloads(db, include_inactive=True) if can_manage_results else []
+    db_mode = "SQLite" if os.getenv("DATABASE_URL", "sqlite://").startswith("sqlite") else "PostgreSQL"
     return render_template(
         request=request,
         name="dashboard.html",
@@ -607,6 +608,7 @@ async def dashboard(
                 "limit": audit_limit,
             },
             "workspace_copy": _workspace_copy(current_user.role),
+            "db_mode": db_mode,
         },
     )
 
