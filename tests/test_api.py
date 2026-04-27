@@ -316,6 +316,8 @@ def test_admin_user_management_and_role_aware_dashboard(api_client: TestClient) 
     assert admin_dashboard.status_code == 200
     assert "Admin Control Plane" in admin_dashboard.text
     assert "User Access Control" in admin_dashboard.text
+    assert "Add New User" in admin_dashboard.text
+    assert "addUserForm" in admin_dashboard.text
     assert "Audit Trail" in admin_dashboard.text
 
     api_client.post("/api/auth/logout")
@@ -324,6 +326,8 @@ def test_admin_user_management_and_role_aware_dashboard(api_client: TestClient) 
     assert viewer_dashboard.status_code == 200
     assert "Read-only Workspace" in viewer_dashboard.text
     assert "User Access Control" not in viewer_dashboard.text
+    assert "Add New User" not in viewer_dashboard.text
+    assert "addUserForm" not in viewer_dashboard.text
 
 
 def test_last_admin_guard_and_filtered_audit_queries(api_client: TestClient) -> None:

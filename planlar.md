@@ -18,6 +18,7 @@
 - [x] Local `origin` remote URL tokenless HTTPS formatina cekildi
 - [x] GitHub `main`, `v2.0.0` tag/release ve branch protection yayina alindi
 - [x] Docker/PostgreSQL smoke sirasinda yakalanan NumPy scalar persist bug'i duzeltildi
+- [/] `v2.0.1` public-readiness patch branch'i pushlandi; PR acilisi bekliyor (`codex/public-github-polish`)
 
 ---
 
@@ -37,7 +38,8 @@
 ### 1.3 Proje Yuzeyi
 - [x] `examples/README.md`
 - [x] `examples/sample_nist.csv`
-- [x] `pyproject.toml` v2.0.0 metadata
+- [x] tam NIST Numisheet browser demo CSV'si
+- [x] `pyproject.toml` v2.0.1 metadata
 
 ### 1.4 Public Push Readiness
 - [x] manual smoke scriptlerinden local Windows path'leri kaldirildi
@@ -80,9 +82,10 @@
 - [x] `tests/test_db.py`
 - [x] `tests/test_auth.py`
 - [x] `tests/test_api.py`
+- [x] `tests/test_examples.py`
 - [x] `tests/test_postgres_smoke.py`
-- [x] `pytest -q`
-- [x] `pytest --cov=src --cov-report=term-missing -q`
+- [x] `pytest -q` (`34 passed, 2 skipped`)
+- [x] `pytest --cov=src --cov=web --cov-report=term-missing -q` (`34 passed, 2 skipped`, 76% coverage)
 
 ### 3.2 CI Durumu
 - [x] Ruff + pytest matrix
@@ -159,7 +162,7 @@
 - [x] `README.md`, `CHANGELOG.md`, `docs/vendor_integration.md`
 - [x] `docs/current_status_and_usage.md`
 - [x] `web/templates/dashboard.html`, `web/templates/guide.html`
-- [x] `examples/README.md`, `examples/sample_nist.csv`
+- [x] `examples/README.md`, `examples/sample_nist.csv`, tam NIST Numisheet CSV
 - [x] hardening dokumani olarak `planlar.md`
 
 ### Sonraya Ayrilmasi Gereken Karisik Diff Adaylari
@@ -193,7 +196,7 @@
 - [x] Dahil edilenler:
   `pyproject.toml`, `src/__init__.py`, `src/curveintel/**`, `alembic/**`, `alembic.ini`, `web/app.py`, `web/templates/login.html`, `web/templates/dashboard.html`, `web/templates/guide.html`, `tests/test_db.py`, `tests/test_auth.py`, `tests/test_api.py`, `tests/test_postgres_smoke.py`, `tests/conftest.py`, `tests/support.py`, `tests/__init__.py`, `Dockerfile`, `docker-compose.yml`, `docker-entrypoint.sh`, `.env.example`, `.gitignore`, `.github/workflows/ci.yml`, `README.md`, `CHANGELOG.md`, `docs/vendor_integration.md`, `examples/README.md`, `examples/sample_nist.csv`, `planlar.md`
 - [x] Gate:
-  `ruff check .`, `ruff format --check .`, `pytest -q`, `pytest --cov=src --cov-report=term-missing -q`, canli `docker compose` + PostgreSQL smoke zaten dogrulandi
+  `ruff check .`, `ruff format --check .`, `pytest -q`, `pytest --cov=src --cov=web --cov-report=term-missing -q`, canli `docker compose` + PostgreSQL smoke zaten dogrulandi
 
 ### Paket B: `pipeline-quality-followup`
 - [x] Amac: runtime-disi pipeline kalite borcunu ve manuel smoke script temizligini ayri bir degisiklik seti yapmak
@@ -209,21 +212,34 @@
 - [x] Hedefler:
   kullanici listeleme/yonetme, audit filtreleme ve detay gorunumu, role-aware dashboard sadelestirmesi
 
+### Paket D: `public-github-polish-v2.0.1`
+- [/] Amac: GitHub public-readiness polish, gercek NIST browser demo verisi, dokuman/test senkronu
+- [x] Branch: `codex/public-github-polish` pushlandi
+- [x] Dahil edilecekler:
+  `.gitignore`, `.github/workflows/ci.yml`, `pyproject.toml`, `src/__init__.py`, `src/curveintel/manual_data.py`, `web/**`, `tests/test_api.py`, `tests/test_auth.py`, `tests/test_examples.py`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/current_status_and_usage.md`, `docs/release_notes_v2.0.0.md`, `examples/README.md`, tam NIST Numisheet CSV, `planlar.md`
+- [x] Cikarilanlar:
+  `docs/remaining_work_handoff.md` stale handoff dokumani
+- [x] Gate:
+  `ruff check . --no-cache`, `ruff format --check .`, `pytest -q`, `pytest --cov=src --cov=web --cov-report=term-missing -q`
+
 ---
 
 ## Sonraki Mantikli Adimlar
 
-1. ~~PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.~~ **TAMAMLANDI** — PR #7 merged, `v2.0.0` tag `d9625d1` commit'ine tasinarak release guncellendi.
+1. ~~PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.~~ **TAMAMLANDI** — PR #7 ve PR #11 merged, `v2.0.0` tag `e569b38` commit'ine tasinarak release guncellendi.
 2. ~~GitHub repo ops'ta kalan dusuk riskli hijyen islerini kapat: issue labels ve 2-3 good-first-issue.~~ **TAMAMLANDI** — `ops` ve `security` labellari eklendi, 3 good-first-issue (#8, #9, #10) olusturuldu.
-3. Istenirse local Docker disinda demo deployment hazirla.
+3. `codex/public-github-polish` icin GitHub PR ac; CI gecince merge et ve `v2.0.1` tag/release yayinla.
+4. Istenirse local Docker disinda demo deployment hazirla.
 
 ### Uygulama Notu
 - A, B ve C commitleri ayrildi; teknik baseline tamamlandi.
 - GitHub release yayinda; branch protection ve CI required checks ayarlandi.
 - Local Docker/PostgreSQL demo uvicorn'a gore daha gercekci kabul edildi ve bu akista dogrulandi.
 - PR #7 (`codex/postgres-numeric-snapshot` -> `main`) 5/5 CI check gecerek merge edildi.
-- `v2.0.0` tag ve release `d9625d1` merge commit'ine tasinarak guncellendi.
+- PR #11 (`fix/oss-readiness-polish` -> `main`) CI check gecerek merge edildi.
+- `v2.0.0` tag ve release `e569b38` merge commit'ine tasinarak guncellendi.
 - Issue hijyeni tamamlandi: labels + 3 good-first-issue.
+- `v2.0.1` patch hazirligi local olarak dogrulandi: `34 passed, 2 skipped`, 76% coverage.
 
 ---
 
@@ -235,8 +251,11 @@
 - [x] local Docker demo dogrulandi; harici demo deployment opsiyonel
 - [x] `v2.0.0` tag/release stratejisi yeni baseline commit'ine gore netlestirildi
 - [x] `v2.0.0` release notes taslagi hazirlandi
-- [x] `v2.0.0` tag ve GitHub release yayini — tag `d9625d1` commit'ine tasinarak guncellendi
+- [x] `v2.0.0` tag ve GitHub release yayini — tag `e569b38` commit'ine tasinarak guncellendi
 - [x] PR #7 merge — `codex/postgres-numeric-snapshot` -> `main`, 5/5 CI checks passed
+- [x] PR #11 merge — `fix/oss-readiness-polish` -> `main`, CI checks passed
+- [x] Merge edilmis remote branch temizligi: `codex/postgres-numeric-snapshot`, `fix/oss-readiness-polish`
+- [/] `v2.0.1` public-readiness PR acilisi
 
 ---
 
@@ -247,4 +266,4 @@
 
 ---
 
-**Son guncelleme:** 27 Nisan 2026 - PR #7 merged (5/5 CI checks passed), `v2.0.0` tag `d9625d1`'e tasinarak release guncellendi, issue labels ve 3 good-first-issue (#8, #9, #10) olusturuldu. Kalan tek is: opsiyonel harici demo deployment.
+**Son guncelleme:** 27 Nisan 2026 - `codex/public-github-polish` branch'i icin `v2.0.1` public-readiness patch hazirlandi, local gate'ler gecti (`ruff check . --no-cache`, `ruff format --check .`, `pytest -q` = 34 passed / 2 skipped, `pytest --cov=src --cov=web --cov-report=term-missing -q` = 34 passed / 2 skipped / 76%) ve branch origin'a pushlandi. Merge edilmis eski remote branch'ler temizlendi. `gh` CLI olmadigi icin PR GitHub URL uzerinden acilacak: `https://github.com/Verm1lion/CurveIntel/pull/new/codex/public-github-polish`. Siradaki is: PR + CI sonrasi `v2.0.1` tag/release.

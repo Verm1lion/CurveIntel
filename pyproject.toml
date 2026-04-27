@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "curveintel"
-version = "2.0.0"
+version = "2.0.1"
 description = "ISO 6892-1:2019 compliant tensile test analysis engine with multi-vendor CSV support"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -66,6 +66,9 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*", "web*"]
+
+[tool.setuptools.package-data]
+web = ["templates/*.html", "static/*"]
 
 [tool.ruff]
 line-length = 100

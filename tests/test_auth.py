@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -117,6 +118,10 @@ def test_api_errors_use_standardized_payloads(auth_client: TestClient) -> None:
     assert invalid_register_payload["error"]["code"] == "validation_error"
     assert invalid_register_payload["error"]["message"] == "Request validation failed."
     assert isinstance(invalid_register_payload["error"]["details"], list)
+    json.dumps(invalid_register_payload["error"]["details"])
+    assert all(
+        isinstance(item["type"], str) for item in invalid_register_payload["error"]["details"]
+    )
 
 
 def test_admin_can_register_roles_and_viewer_cannot_analyze(
@@ -375,7 +380,7 @@ def test_report_download_rehydrates_context_from_snapshot(
         assert admin is not None
         persisted = persist_analysis_result(
             session,
-            filename="reportable.csv",
+            filename='report able "unsafe".csv',
             uts_mpa=798.0,
             created_by_user_id=admin.id,
             created_at=datetime(2026, 3, 1, tzinfo=timezone.utc),
@@ -385,6 +390,11 @@ def test_report_download_rehydrates_context_from_snapshot(
     report_response = auth_client.get(f"/api/report/{persisted.id}/pdf")
     assert report_response.status_code == 200, report_response.text
     assert report_response.headers["content-type"].startswith("application/pdf")
+    assert (
+        report_response.headers["content-disposition"]
+        == 'attachment; filename="CurveIntel_Report_report_able_unsafe.pdf"'
+    )
+    assert int(report_response.headers["content-length"]) == len(report_response.content) > 0
 
     engine = create_engine(auth_database_url, future=True)
     with Session(engine) as session:

@@ -11,6 +11,7 @@ EXAMPLES_DIR = REPO_ROOT / "examples"
 DEFAULT_REPORTS_DIR = REPO_ROOT / "reports"
 TEST_REPORTS_DIR = REPO_ROOT / "tests" / "reports"
 SAMPLE_NIST_CSV = EXAMPLES_DIR / "sample_nist.csv"
+FULL_NIST_CSV = EXAMPLES_DIR / "C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv"
 NIST_DIR_NAME = "nist_numisheet"
 NIST_REFERENCE_NAME = "C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv"
 USERIES_REFERENCE_NAME = "U00FeDP980R01T1.405W12.7.csv"
@@ -86,6 +87,7 @@ def get_nist_reference_csv(raw_path: str | Path | None = None) -> Path | None:
     nist_dir = get_nist_directory(raw_path)
     return _first_existing(
         nist_dir / NIST_REFERENCE_NAME if nist_dir is not None else None,
+        FULL_NIST_CSV,
         SAMPLE_NIST_CSV,
     )
 

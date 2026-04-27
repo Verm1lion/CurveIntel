@@ -130,9 +130,6 @@
         </div>
         <div class="hidden md:flex gap-6 items-center">
             <a class="font-inter tracking-tight text-blue-400 border-b-2 border-blue-400 pb-1" href="/">Dashboard</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Analytics</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Materials</a>
-            <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="#">Archive</a>
             <a class="font-inter tracking-tight text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors px-2 rounded" href="/guide">Guide</a>
         </div>
     </div>
@@ -151,7 +148,7 @@
             <span class="material-symbols-outlined text-primary text-[18px]">verified_user</span>
             <div class="leading-tight">
                 <p class="text-sm font-medium text-on-surface">{{ current_user.full_name }}</p>
-                <p class="text-[10px] text-on-surface-variant">{{ current_user.email }} | {{ current_user.role|upper }}</p>
+                <p class="text-[10px] text-on-surface-variant">{{ current_user.email }}</p>
             </div>
         </div>
         <button onclick="logout()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors text-sm font-medium">
@@ -187,6 +184,50 @@
         </div>
     </div>
 </div>
+
+<!-- ADD USER MODAL -->
+{% if can_manage_results %}
+<div id="addUserOverlay" class="upload-overlay items-center justify-center">
+    <div class="glass-panel rounded-2xl p-8 max-w-lg w-full mx-4 fade-up">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-on-surface">Add New User</h2>
+            <button onclick="hideAddUserModal()" class="text-on-surface-variant hover:text-on-surface">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form id="addUserForm" class="space-y-4">
+            <div>
+                <label class="mb-2 block text-sm text-on-surface-variant" for="new-user-name">Full Name</label>
+                <input id="new-user-name" name="full_name" type="text" required
+                    class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary">
+            </div>
+            <div>
+                <label class="mb-2 block text-sm text-on-surface-variant" for="new-user-email">Email</label>
+                <input id="new-user-email" name="email" type="email" required
+                    class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary">
+            </div>
+            <div>
+                <label class="mb-2 block text-sm text-on-surface-variant" for="new-user-password">Password <span class="text-[10px] text-outline">(min 12 chars, upper+lower+number)</span></label>
+                <input id="new-user-password" name="password" type="password" required minlength="12"
+                    class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary">
+            </div>
+            <div>
+                <label class="mb-2 block text-sm text-on-surface-variant" for="new-user-role">Role</label>
+                <select id="new-user-role" name="role"
+                    class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary">
+                    <option value="viewer">Viewer — read-only access</option>
+                    <option value="analyst">Analyst — upload & analyze</option>
+                    <option value="admin">Admin — full control</option>
+                </select>
+            </div>
+            <div id="addUserNotice" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+            <button type="submit" class="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-on-primary transition hover:bg-primary/90">
+                Create User
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <main class="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full space-y-8 pb-24">
 
@@ -385,37 +426,6 @@
             </div>
         </div>
 
-        <!-- Pipeline Status -->
-        <div class="glass-panel rounded-xl p-6 relative fade-up">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-semibold text-on-surface">Pipeline Status</h2>
-                <span class="text-xs text-on-surface-variant font-mono">Total Time: {{ current.pipeline.total_ms }} ms</span>
-            </div>
-            <div class="flex items-center justify-between relative mb-4">
-                <div class="absolute top-1/2 left-0 w-full h-[2px] bg-outline-variant/15 -z-10 -translate-y-1/2"></div>
-                {% for layer_name, layer_label in [('ingestion','Ingestion'), ('preprocessing','Preproc'), ('extraction','Extract'), ('anomaly','Anomaly'), ('reporting','Report')] %}
-                {% set status = current.pipeline.layer_status[layer_name] %}
-                <div class="flex flex-col items-center gap-2 bg-surface-container-low px-2">
-                    {% if status == 'success' %}
-                    <div class="w-8 h-8 rounded-full bg-tertiary-fixed/20 border border-tertiary-fixed flex items-center justify-center text-tertiary-fixed">
-                        <span class="material-symbols-outlined text-[16px]">check</span>
-                    </div>
-                    <span class="text-[10px] text-on-surface-variant">{{ layer_label }}</span>
-                    {% elif status == 'warning' %}
-                    <div class="w-8 h-8 rounded-full bg-error-container border border-error flex items-center justify-center text-error animate-pulse">
-                        <span class="material-symbols-outlined text-[16px]">warning</span>
-                    </div>
-                    <span class="text-[10px] text-error">{{ layer_label }}</span>
-                    {% else %}
-                    <div class="w-8 h-8 rounded-full bg-surface-container border border-error flex items-center justify-center text-error">
-                        <span class="material-symbols-outlined text-[16px]">close</span>
-                    </div>
-                    <span class="text-[10px] text-error">{{ layer_label }}</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
     </div>
 
     <!-- RIGHT: Properties + Anomalies + Signal -->
@@ -633,9 +643,14 @@
 {% if can_manage_results %}
 <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 mt-8">
     <div class="xl:col-span-5 glass-panel rounded-xl p-0 overflow-hidden fade-up">
-        <div class="p-6 border-b border-outline-variant/15">
-            <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
-            <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
+        <div class="p-6 border-b border-outline-variant/15 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
+                <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
+            </div>
+            <button onclick="showAddUserModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-[14px]">person_add</span> Add User
+            </button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
@@ -828,9 +843,14 @@
 {% if can_manage_results and not has_data %}
 <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
     <div class="xl:col-span-5 glass-panel rounded-xl p-0 overflow-hidden fade-up">
-        <div class="p-6 border-b border-outline-variant/15">
-            <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
-            <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
+        <div class="p-6 border-b border-outline-variant/15 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-on-surface">User Access Control</h2>
+                <p class="text-xs text-on-surface-variant mt-1">{{ admin_users|length }} managed accounts</p>
+            </div>
+            <button onclick="showAddUserModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-[14px]">person_add</span> Add User
+            </button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
@@ -1103,8 +1123,7 @@ async function uploadFile(file) {
     }
 }
 
-// Close modal on ESC
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideUploadModal(); });
+
 
 {% if has_data %}
 // ── Chart.js Stress-Strain ──
@@ -1197,6 +1216,62 @@ if (curveData.strain && curveData.strain.length > 0) {
     });
 }
 {% endif %}
+
+{% if can_manage_results %}
+// Add User Modal
+function showAddUserModal() {
+    const overlay = document.getElementById('addUserOverlay');
+    if (overlay) overlay.classList.add('active');
+}
+function hideAddUserModal() {
+    const overlay = document.getElementById('addUserOverlay');
+    if (overlay) overlay.classList.remove('active');
+    const notice = document.getElementById('addUserNotice');
+    if (notice) notice.className = 'hidden rounded-xl border px-4 py-3 text-sm';
+}
+
+const addUserForm = document.getElementById('addUserForm');
+if (addUserForm) {
+    addUserForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const payload = Object.fromEntries(formData.entries());
+        const notice = document.getElementById('addUserNotice');
+
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.ok) {
+                notice.className = 'rounded-xl border px-4 py-3 text-sm mb-2 border-emerald-400/30 bg-emerald-400/10 text-emerald-100';
+                notice.textContent = `User "${payload.full_name}" created successfully. Reloading...`;
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                notice.className = 'rounded-xl border px-4 py-3 text-sm mb-2 border-rose-400/30 bg-rose-400/10 text-rose-100';
+                notice.textContent = getApiErrorMessage(data, 'Failed to create user.');
+            }
+        } catch (err) {
+            notice.className = 'rounded-xl border px-4 py-3 text-sm mb-2 border-rose-400/30 bg-rose-400/10 text-rose-100';
+            notice.textContent = `Error: ${err.message}`;
+        }
+    });
+}
+{% endif %}
+
+// Close modals on ESC
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        hideUploadModal();
+        {% if can_manage_results %}
+        hideAddUserModal();
+        {% endif %}
+    }
+});
 </script>
 </body>
 </html>

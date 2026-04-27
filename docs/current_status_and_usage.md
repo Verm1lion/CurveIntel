@@ -20,12 +20,13 @@ What is not a product blocker anymore:
 - The app no longer depends on an in-memory result store as the primary source of truth.
 - The repo no longer exposes local Windows absolute paths in manual smoke scripts.
 - A compact sample dataset exists at `examples/sample_nist.csv` for quick local smoke runs.
+- A full public NIST Numisheet stress-strain sample exists at `examples/C00Al6xxxT4Numisheet2020R01T1.521W17.91-S-Stress-Strain.csv` for realistic browser uploads.
 
 What still remains outside product development:
 
 - Optional demo deployment beyond local Docker
 
-In short: the coding phase for the baseline is complete, `v2.0.0` has been published, and the remaining work is optional demo/ops polish.
+In short: the coding phase for the baseline is complete, `v2.0.0` has been published, and the current tree prepares a small `v2.0.1` public-readiness patch.
 
 ## 2. Supported Runtime Modes
 
@@ -202,8 +203,8 @@ The admin can:
 Important current detail:
 
 - The dashboard supports managing existing users.
-- New user creation is currently done through `POST /api/auth/register`.
-- After bootstrap, that endpoint is admin-only.
+- Admins can create new users from the dashboard Add User flow.
+- The same creation path is exposed by `POST /api/auth/register`; after bootstrap, that endpoint is admin-only.
 
 ### Step 4: Admin creates working accounts
 
@@ -400,7 +401,7 @@ These scripts are now public-share-safe:
 
 - they no longer hardcode a local machine path
 - they use `CURVEINTEL_DATASET_ROOT` when external datasets are available
-- several of them fall back to `examples/sample_nist.csv`
+- several of them fall back to bundled examples under `examples/`
 - scripts that require a real external dataset now exit cleanly with a setup hint instead of failing with a broken local path
 
 Example for manual dataset setup:
@@ -416,8 +417,8 @@ The baseline has already been verified through:
 
 - `ruff check .`
 - `ruff format --check .`
-- `pytest -q` (`33 passed, 2 skipped`)
-- `pytest --cov=src --cov-report=term-missing -q` (`33 passed, 2 skipped`, 75% coverage)
+- `pytest -q` (`34 passed, 2 skipped`)
+- `pytest --cov=src --cov=web --cov-report=term-missing -q` (`34 passed, 2 skipped`, 76% coverage)
 - Docker + PostgreSQL smoke validation using `examples/sample_nist.csv`
 
 This means the current baseline is not just documented; it has already been exercised in both SQLite-oriented tests and PostgreSQL deployment-style flow.
@@ -428,7 +429,7 @@ No critical product development blockers are left in the baseline phase.
 
 What remains:
 
-- issue/release hygiene
+- merge the `v2.0.1` public-readiness patch branch and tag `v2.0.1` after CI passes
 - optional demo deployment beyond local Docker
 
 So the project is now in a public-shareable baseline state rather than an unfinished core-development state.

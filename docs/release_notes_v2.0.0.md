@@ -31,10 +31,10 @@ Local validation completed for the baseline:
 - `ruff check .`
 - `ruff format --check .`
 - `pytest -q`
-- `pytest --cov=src --cov-report=term-missing -q`
+- `pytest --cov=src --cov=web --cov-report=term-missing -q`
 
-Latest local result: 32 tests passed, 2 optional PostgreSQL tests skipped when
-live database URLs were not configured, and total source coverage was 75%.
+Latest local result: 34 tests passed, 2 optional PostgreSQL tests skipped when
+live database URLs were not configured, and total source coverage was 76%.
 
 ## Release Operations
 

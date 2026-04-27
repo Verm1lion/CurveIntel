@@ -14,6 +14,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ from fastapi.exception_handlers import (
     request_validation_exception_handler,
 )
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -88,6 +90,14 @@ from src.pipeline.reporting import generate_pdf_report
 BASE_DIR = Path(__file__).parent
 UPLOAD_DIR = BASE_DIR.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+def _safe_report_stem(filename: str) -> str:
+    """Return a filesystem/browser-safe report filename stem."""
+
+    raw_stem = Path(filename).stem or "analysis"
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", raw_stem).strip("._")
+    return safe_stem or "analysis"
 
 
 def _open_db_session() -> Session:
@@ -233,7 +243,7 @@ async def handle_validation_exception(request: Request, exc: RequestValidationEr
         request,
         status_code=422,
         message="Request validation failed.",
-        details=exc.errors(),
+        details=jsonable_encoder(exc.errors()),
     )
 
 
@@ -904,10 +914,17 @@ async def download_pdf(
         with open(pdf_path, "rb") as file_handle:
             yield from file_handle
 
+    safe_name = _safe_report_stem(result["filename"])
+    pdf_filename = f"CurveIntel_Report_{safe_name}.pdf"
+    file_size = pdf_path.stat().st_size
+
     return StreamingResponse(
         iterfile(),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=CurveIntel_{result_id}.pdf"},
+        headers={
+            "Content-Disposition": f'attachment; filename="{pdf_filename}"',
+            "Content-Length": str(file_size),
+        },
     )
 
 
