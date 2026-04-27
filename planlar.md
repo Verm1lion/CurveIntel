@@ -18,7 +18,7 @@
 - [x] Local `origin` remote URL tokenless HTTPS formatina cekildi
 - [x] GitHub `main`, `v2.0.0` tag/release ve branch protection yayina alindi
 - [x] Docker/PostgreSQL smoke sirasinda yakalanan NumPy scalar persist bug'i duzeltildi
-- [/] `v2.0.1` public-readiness patch branch'i pushlandi; PR acilisi bekliyor (`codex/public-github-polish`)
+- [x] `v2.0.1` public-readiness patch PR #12 ile merge edildi, tag/release yayina alindi
 
 ---
 
@@ -213,7 +213,7 @@
   kullanici listeleme/yonetme, audit filtreleme ve detay gorunumu, role-aware dashboard sadelestirmesi
 
 ### Paket D: `public-github-polish-v2.0.1`
-- [/] Amac: GitHub public-readiness polish, gercek NIST browser demo verisi, dokuman/test senkronu
+- [x] Amac: GitHub public-readiness polish, gercek NIST browser demo verisi, dokuman/test senkronu
 - [x] Branch: `codex/public-github-polish` pushlandi
 - [x] Dahil edilecekler:
   `.gitignore`, `.github/workflows/ci.yml`, `pyproject.toml`, `src/__init__.py`, `src/curveintel/manual_data.py`, `web/**`, `tests/test_api.py`, `tests/test_auth.py`, `tests/test_examples.py`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/current_status_and_usage.md`, `docs/release_notes_v2.0.0.md`, `examples/README.md`, tam NIST Numisheet CSV, `planlar.md`
@@ -228,7 +228,7 @@
 
 1. ~~PostgreSQL scalar persist fix'ini push et ve `v2.0.0` tag'ini son kapanis commit'ine tasidiktan sonra release'i guncelle.~~ **TAMAMLANDI** — PR #7 ve PR #11 merged, `v2.0.0` tag `e569b38` commit'ine tasinarak release guncellendi.
 2. ~~GitHub repo ops'ta kalan dusuk riskli hijyen islerini kapat: issue labels ve 2-3 good-first-issue.~~ **TAMAMLANDI** — `ops` ve `security` labellari eklendi, 3 good-first-issue (#8, #9, #10) olusturuldu.
-3. `codex/public-github-polish` icin GitHub PR ac; CI gecince merge et ve `v2.0.1` tag/release yayinla.
+3. ~~`codex/public-github-polish` icin GitHub PR ac; CI gecince merge et ve `v2.0.1` tag/release yayinla.~~ **TAMAMLANDI** — PR #12 merge edildi, `v2.0.1` latest release olarak yayinlandi.
 4. Istenirse local Docker disinda demo deployment hazirla.
 
 ### Uygulama Notu
@@ -240,6 +240,7 @@
 - `v2.0.0` tag ve release `e569b38` merge commit'ine tasinarak guncellendi.
 - Issue hijyeni tamamlandi: labels + 3 good-first-issue.
 - `v2.0.1` patch hazirligi local olarak dogrulandi: `34 passed, 2 skipped`, 76% coverage.
+- PR #12 (`codex/public-github-polish` -> `main`) merge edildi; `v2.0.1` tag/release `7f7e003` merge commit'ine baglandi.
 
 ---
 
@@ -255,7 +256,8 @@
 - [x] PR #7 merge — `codex/postgres-numeric-snapshot` -> `main`, 5/5 CI checks passed
 - [x] PR #11 merge — `fix/oss-readiness-polish` -> `main`, CI checks passed
 - [x] Merge edilmis remote branch temizligi: `codex/postgres-numeric-snapshot`, `fix/oss-readiness-polish`
-- [/] `v2.0.1` public-readiness PR acilisi
+- [x] PR #12 merge — `codex/public-github-polish` -> `main`, 5/5 CI checks passed
+- [x] `v2.0.1` tag ve GitHub release yayini — tag `7f7e003` merge commit'ine baglandi
 
 ---
 
@@ -266,4 +268,4 @@
 
 ---
 
-**Son guncelleme:** 27 Nisan 2026 - `codex/public-github-polish` branch'i icin `v2.0.1` public-readiness patch hazirlandi, local gate'ler gecti (`ruff check . --no-cache`, `ruff format --check .`, `pytest -q` = 34 passed / 2 skipped, `pytest --cov=src --cov=web --cov-report=term-missing -q` = 34 passed / 2 skipped / 76%) ve branch origin'a pushlandi. Merge edilmis eski remote branch'ler temizlendi. `gh` CLI olmadigi icin PR GitHub URL uzerinden acilacak: `https://github.com/Verm1lion/CurveIntel/pull/new/codex/public-github-polish`. Siradaki is: PR + CI sonrasi `v2.0.1` tag/release.
+**Son guncelleme:** 27 Nisan 2026 - PR #12 merge edildi, `v2.0.1` tag/release `7f7e003` merge commit'ine baglandi ve GitHub'da latest release olarak dogrulandi. Public-readiness patch kapandi (`ruff check . --no-cache`, `ruff format --check .`, `pytest -q` = 34 passed / 2 skipped, `pytest --cov=src --cov=web --cov-report=term-missing -q` = 34 passed / 2 skipped / 76%). Kritik kalan is yok; opsiyonel siradaki is local Docker disinda demo deployment veya yeni roadmap issue'lari.
