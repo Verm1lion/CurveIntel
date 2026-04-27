@@ -65,7 +65,7 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-The template defaults to SQLite, so local development works out of the box. At minimum, review:
+When `DATABASE_URL` is unset, local development defaults to SQLite, so this works out of the box. At minimum, review:
 
 - `JWT_SECRET_KEY` — change from the placeholder for any non-throwaway use
 - `AUTH_BOOTSTRAP_ADMIN_PASSWORD` — set if you want a startup-seeded admin instead of the `/login` bootstrap form
@@ -93,14 +93,14 @@ To try the browser workflow with bundled data:
 
 ## Docker and PostgreSQL
 
-1. Copy `.env.example` to `.env` and set `JWT_SECRET_KEY`.
+1. Copy `.env.example` to `.env`, set `JWT_SECRET_KEY`, and leave `DATABASE_URL` unset unless you intentionally want to override the database target.
 2. Start the stack.
 
 ```shell
 docker compose up --build -d
 ```
 
-The Docker Compose file sets `DATABASE_URL` to PostgreSQL automatically, overriding the SQLite default in `.env`.
+The Docker Compose file sets `DATABASE_URL` to PostgreSQL automatically when no override is provided.
 
 The `curveintel` container runs `alembic upgrade head` before starting `uvicorn`, so the schema is created or upgraded automatically.
 
