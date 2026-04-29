@@ -297,6 +297,9 @@
             <span class="px-3 py-1 rounded-full border border-outline-variant/20 bg-surface-container text-on-surface-variant">
                 Management: <strong class="{% if can_manage_results %}text-tertiary-fixed{% else %}text-error{% endif %}">{% if can_manage_results %}admin only{% else %}read only{% endif %}</strong>
             </span>
+            <span class="px-3 py-1 rounded-full border border-outline-variant/20 bg-surface-container text-on-surface-variant">
+                Database: <strong class="text-tertiary-fixed">{{ db_mode }}</strong>
+            </span>
         </div>
     </div>
 </section>
